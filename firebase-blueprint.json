@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Rotina PRO Blueprint",
+  "entities": {
+    "tarefas": {
+      "title": "Tarefa",
+      "description": "Tarefas do usuário",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "titulo": { "type": "string" },
+        "descricao": { "type": "string" },
+        "categoria": { "type": "string" },
+        "prioridade": { "type": "string", "enum": ["Baixa", "Média", "Alta"] },
+        "data_vencimento": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pendente", "Concluída"] },
+        "userId": { "type": "string" },
+        "criado_em": { "type": "string" }
+      },
+      "required": ["titulo", "categoria", "status"]
+    },
+    "projetos": {
+      "title": "Projeto",
+      "description": "Projetos com etapas",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "titulo": { "type": "string" },
+        "descricao": { "type": "string" },
+        "categoria": { "type": "string" },
+        "data_limite": { "type": "string" },
+        "status": { "type": "string", "enum": ["Em Andamento", "Concluído"] },
+        "passos": { "type": "array" },
+        "userId": { "type": "string" },
+        "criado_em": { "type": "string" }
+      },
+      "required": ["titulo", "categoria", "status"]
+    },
+    "categorias": {
+      "title": "Categorias",
+      "description": "Categorias de tarefas e projetos",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["nome"]
+    }
+  },
+  "firestore": {
+    "/tarefas/{tarefaId}": {
+      "schema": "tarefas",
+      "description": "Coleção de tarefas do Rotina PRO"
+    },
+    "/projetos/{projetoId}": {
+      "schema": "projetos",
+      "description": "Coleção de projetos do Rotina PRO"
+    },
+    "/categorias/{categoriaId}": {
+      "schema": "categorias",
+      "description": "Coleção de categorias personalizadas"
+    }
+  }
+}

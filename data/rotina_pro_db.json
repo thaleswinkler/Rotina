@@ -1,0 +1,141 @@
+{
+  "nextId": 10,
+  "nextPassoId": 20,
+  "categorias": [
+    "Trabalho",
+    "Pessoal",
+    "Estudos",
+    "Saúde",
+    "Finanças",
+    "Projetos"
+  ],
+  "tarefas": [
+    {
+      "id": 1,
+      "titulo": "Revisar apresentação de metas trimestrais",
+      "descricao": "Alinhar KPIs e métricas com os líderes de equipe antes da reunião geral.",
+      "categoria": "Trabalho",
+      "prioridade": "Alta",
+      "data_vencimento": "2026-09-17",
+      "status": "Pendente",
+      "criado_em": "2026-09-17T09:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "titulo": "Corrida matinal de 5km",
+      "descricao": "Treino cardiovascular leve na pista do parque.",
+      "categoria": "Saúde",
+      "prioridade": "Média",
+      "data_vencimento": "2026-09-17",
+      "status": "Concluída",
+      "criado_em": "2026-09-17T08:00:00.000Z"
+    },
+    {
+      "id": 3,
+      "titulo": "Estudar módulo de Inteligência Artificial e Gemini",
+      "descricao": "Assistir às aulas de Function Calling e áudio multimodal com Python.",
+      "categoria": "Estudos",
+      "prioridade": "Alta",
+      "data_vencimento": "2026-09-20",
+      "status": "Pendente",
+      "criado_em": "2026-09-17T09:10:00.000Z"
+    },
+    {
+      "id": 4,
+      "titulo": "Revisar fatura do cartão e investimentos",
+      "descricao": "Categorizar despesas do mês e alocar aporte mensal.",
+      "categoria": "Finanças",
+      "prioridade": "Média",
+      "data_vencimento": "2026-09-22",
+      "status": "Pendente",
+      "criado_em": "2026-09-17T09:15:00.000Z"
+    }
+  ],
+  "projetos": [
+    {
+      "id": 1,
+      "titulo": "Lançamento da Nova Plataforma Web",
+      "descricao": "Reformulação completa do produto digital com integração multimodal e design responsivo.",
+      "categoria": "Trabalho",
+      "data_limite": "2026-10-15",
+      "status": "Em Andamento",
+      "criado_em": "2026-09-17T09:00:00.000Z",
+      "passos": [
+        {
+          "id": 1,
+          "projeto_id": 1,
+          "titulo": "Mapear requisitos de produto e arquitetura",
+          "concluido": true,
+          "ordem": 1
+        },
+        {
+          "id": 2,
+          "projeto_id": 1,
+          "titulo": "Criar protótipos de alta fidelidade e design system",
+          "concluido": true,
+          "ordem": 2
+        },
+        {
+          "id": 3,
+          "projeto_id": 1,
+          "titulo": "Desenvolver endpoints da API e integração Gemini",
+          "concluido": false,
+          "ordem": 3
+        },
+        {
+          "id": 4,
+          "projeto_id": 1,
+          "titulo": "Executar testes de usabilidade com usuários beta",
+          "concluido": false,
+          "ordem": 4
+        },
+        {
+          "id": 5,
+          "projeto_id": 1,
+          "titulo": "Deploy em produção e validação final",
+          "concluido": false,
+          "ordem": 5
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "titulo": "Plano de Treino e Saúde para Meia Maratona",
+      "descricao": "Rotina de hábitos saudáveis, reeducação alimentar e preparação física.",
+      "categoria": "Saúde",
+      "data_limite": "2026-10-30",
+      "status": "Em Andamento",
+      "criado_em": "2026-09-17T09:05:00.000Z",
+      "passos": [
+        {
+          "id": 6,
+          "projeto_id": 2,
+          "titulo": "Consulta com nutricionista esportivo",
+          "concluido": true,
+          "ordem": 1
+        },
+        {
+          "id": 7,
+          "projeto_id": 2,
+          "titulo": "Planilha de treinos aeróbicos progressivos",
+          "concluido": true,
+          "ordem": 2
+        },
+        {
+          "id": 8,
+          "projeto_id": 2,
+          "titulo": "Adquirir tênis com placa de amortecimento",
+          "concluido": false,
+          "ordem": 3
+        },
+        {
+          "id": 9,
+          "projeto_id": 2,
+          "titulo": "Completar simulado de 18km no parque",
+          "concluido": false,
+          "ordem": 4
+        }
+      ]
+    }
+  ]
+}
