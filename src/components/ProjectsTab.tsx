@@ -20,6 +20,7 @@ import {
   addProjetoFirestore,
   deleteProjetoFirestore,
   addPassoFirestore,
+  updatePassoFirestore,
   togglePassoFirestore,
   deletePassoFirestore,
 } from "../lib/firebase";
