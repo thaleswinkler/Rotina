@@ -8,11 +8,7 @@ import {
   X,
   CheckCircle2,
   Copy,
-  ExternalLink,
-  ShieldCheck,
   HardDrive,
-  QrCode,
-  Share2,
   Cloud,
   RefreshCw,
 } from "lucide-react";
@@ -33,23 +29,22 @@ export const SyncAndBackupModal: React.FC<SyncAndBackupModalProps> = ({
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<"backup" | "celular" | "computador">("backup");
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isSyncingServer, setIsSyncingServer] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
-  const currentUrl = typeof window !== "undefined" ? window.location.href : "";
+  const currentUrl = typeof window !== "undefined" && window.location ? window.location.href : "";
 
   const handleCopyUrl = () => {
-    if (navigator.clipboard) {
+    if (navigator?.clipboard && currentUrl) {
       navigator.clipboard.writeText(currentUrl);
       setCopiedUrl(true);
       onShowToast("Link copiado para a área de transferência!", "success");
       setTimeout(() => setCopiedUrl(false), 2500);
     }
   };
-
-  const [isSyncingServer, setIsSyncingServer] = useState(false);
 
   const handleDownloadBackup = () => {
     window.open("/api/database/backup", "_blank");
@@ -108,8 +103,14 @@ export const SyncAndBackupModal: React.FC<SyncAndBackupModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
+      >
         {/* Modal Header */}
         <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2.5">
