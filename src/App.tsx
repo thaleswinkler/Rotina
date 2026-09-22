@@ -126,28 +126,14 @@ export default function App() {
     const unsubTarefas = subscribeToTarefasFirestore(
       async (firestoreTarefas) => {
         if (firestoreTarefas.length > 0) {
+          // Found real cloud tasks! Set them immediately
           setTarefas(firestoreTarefas);
           setLoading(false);
         } else if (!hasSeeded) {
-          // If firestore is completely empty (new project created by user), automatically populate from local server DB
+          // Only if Firestore is truly empty, don't overwrite blindly
           hasSeeded = true;
-          try {
-            await syncLocalServerToFirestore(true);
-          } catch (err) {
-            console.error("Erro ao sincronizar dados iniciais para o Firestore:", err);
-            // Fallback load directly from server DB
-            const res = await fetch("/api/tasks");
-            const data = await res.json();
-            if (Array.isArray(data) && data.length > 0) setTarefas(data);
-          } finally {
-            setLoading(false);
-          }
+          setLoading(false);
         } else {
-          // If still empty after seeding check, retain any local tasks
-          setTarefas((prev) => {
-            if (prev.length > 0) return prev;
-            return [];
-          });
           setLoading(false);
         }
       },
