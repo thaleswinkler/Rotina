@@ -318,6 +318,59 @@ export async function addCategoriaFirestore(nome: string): Promise<void> {
   });
 }
 
+export async function syncLocalServerToFirestore(forceOverride = false): Promise<{ tarefas: number; projetos: number }> {
+  try {
+    const [tasksRes, projRes, catRes] = await Promise.all([
+      fetch("/api/tasks"),
+      fetch("/api/projects"),
+      fetch("/api/categories"),
+    ]);
+    const initialTasks = await tasksRes.json();
+    const initialProjs = await projRes.json();
+    const initialCats = await catRes.json();
+
+    const tasksList = Array.isArray(initialTasks) ? initialTasks : [];
+    const projsList = Array.isArray(initialProjs) ? initialProjs : [];
+    const catsList = Array.isArray(initialCats) ? initialCats : [];
+
+    const colRef = collection(db, "tarefas");
+    const snapshot = await getDocs(colRef);
+    if (!forceOverride && !snapshot.empty) {
+      return { tarefas: 0, projetos: 0 };
+    }
+
+    const batch = writeBatch(db);
+
+    tasksList.forEach((t) => {
+      const tDoc = doc(db, "tarefas", String(t.id));
+      batch.set(tDoc, {
+        ...t,
+        id: String(t.id),
+      });
+    });
+
+    projsList.forEach((p) => {
+      const pDoc = doc(db, "projetos", String(p.id));
+      batch.set(pDoc, {
+        ...p,
+        id: String(p.id),
+      });
+    });
+
+    catsList.forEach((cat: string) => {
+      const id = cat.toLowerCase().replace(/\s+/g, "_");
+      const cDoc = doc(db, "categorias", id);
+      batch.set(cDoc, { nome: cat });
+    });
+
+    await batch.commit();
+    return { tarefas: tasksList.length, projetos: projsList.length };
+  } catch (err) {
+    console.error("Erro ao sincronizar dados do servidor para o Firestore:", err);
+    throw err;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Seed initial data to Firestore if completely empty
 // ---------------------------------------------------------------------------

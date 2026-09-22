@@ -33,6 +33,7 @@ import {
   deleteTarefaFirestore,
   addCategoriaFirestore,
   seedFirestoreIfEmpty,
+  syncLocalServerToFirestore,
   togglePassoFirestore,
 } from "./lib/firebase";
 
@@ -105,38 +106,53 @@ export default function App() {
     // 2. Real-time Firestore sync
     let hasSeeded = false;
 
-    const unsubTarefas = subscribeToTarefasFirestore(async (firestoreTarefas) => {
-      if (firestoreTarefas.length > 0 || hasSeeded) {
-        setTarefas(firestoreTarefas);
-        setLoading(false);
-      } else {
-        // First cold start: seed from default local database if firestore is empty
-        try {
+    const unsubTarefas = subscribeToTarefasFirestore(
+      async (firestoreTarefas) => {
+        if (firestoreTarefas.length > 0) {
+          setTarefas(firestoreTarefas);
+          setLoading(false);
+        } else if (!hasSeeded) {
+          // If firestore is completely empty (new project created by user), automatically populate from local server DB
           hasSeeded = true;
-          const [tasksRes, projRes, catRes] = await Promise.all([
-            fetch("/api/tasks"),
-            fetch("/api/projects"),
-            fetch("/api/categories"),
-          ]);
-          const initialTasks = await tasksRes.json();
-          const initialProjs = await projRes.json();
-          const initialCats = await catRes.json();
-          await seedFirestoreIfEmpty(
-            Array.isArray(initialTasks) ? initialTasks : [],
-            Array.isArray(initialProjs) ? initialProjs : [],
-            Array.isArray(initialCats) ? initialCats : []
-          );
-        } catch (err) {
-          console.error("Erro ao sincronizar semente inicial com Firestore:", err);
-        } finally {
+          try {
+            await syncLocalServerToFirestore(true);
+          } catch (err) {
+            console.error("Erro ao sincronizar dados iniciais para o Firestore:", err);
+            // Fallback load directly from server DB
+            const res = await fetch("/api/tasks");
+            const data = await res.json();
+            if (Array.isArray(data)) setTarefas(data);
+          } finally {
+            setLoading(false);
+          }
+        } else {
+          setTarefas([]);
           setLoading(false);
         }
+      },
+      async (err) => {
+        console.warn("Firestore snapshot offline/error, carregando do servidor:", err);
+        try {
+          const res = await fetch("/api/tasks");
+          const data = await res.json();
+          if (Array.isArray(data)) setTarefas(data);
+        } catch {}
+        setLoading(false);
       }
-    });
+    );
 
-    const unsubProjetos = subscribeToProjetosFirestore((firestoreProjetos) => {
-      setProjetos(firestoreProjetos);
-    });
+    const unsubProjetos = subscribeToProjetosFirestore(
+      (firestoreProjetos) => {
+        if (firestoreProjetos.length > 0) {
+          setProjetos(firestoreProjetos);
+        } else {
+          carregarProjetos();
+        }
+      },
+      () => {
+        carregarProjetos();
+      }
+    );
 
     const unsubCats = subscribeToCategoriasFirestore((firestoreCats) => {
       if (firestoreCats.length > 0) {

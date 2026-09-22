@@ -14,7 +14,9 @@ import {
   QrCode,
   Share2,
   Cloud,
+  RefreshCw,
 } from "lucide-react";
+import { syncLocalServerToFirestore } from "../lib/firebase";
 
 interface SyncAndBackupModalProps {
   isOpen: boolean;
@@ -47,9 +49,24 @@ export const SyncAndBackupModal: React.FC<SyncAndBackupModalProps> = ({
     }
   };
 
+  const [isSyncingServer, setIsSyncingServer] = useState(false);
+
   const handleDownloadBackup = () => {
     window.open("/api/database/backup", "_blank");
     onShowToast("Download do backup do banco iniciado!", "success");
+  };
+
+  const handleForceSyncServerToCloud = async () => {
+    try {
+      setIsSyncingServer(true);
+      const res = await syncLocalServerToFirestore(true);
+      await onDataRestored();
+      onShowToast(`✅ Sincronizado com a nuvem: ${res.tarefas} tarefas e ${res.projetos} projetos!`, "success");
+    } catch (err: any) {
+      alert("Erro ao enviar dados para a nuvem: " + (err?.message || "Verifique a conexão."));
+    } finally {
+      setIsSyncingServer(false);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,8 +89,15 @@ export const SyncAndBackupModal: React.FC<SyncAndBackupModalProps> = ({
         throw new Error(err.error || "Falha ao restaurar dados.");
       }
 
+      // Also sync to cloud firestore so it reflects on all devices
+      try {
+        await syncLocalServerToFirestore(true);
+      } catch (cloudErr) {
+        console.warn("Aviso ao sincronizar backup restaurado para Firestore:", cloudErr);
+      }
+
       await onDataRestored();
-      onShowToast("✅ Banco de dados restaurado com sucesso!", "success");
+      onShowToast("✅ Banco de dados restaurado e sincronizado na nuvem!", "success");
       onClose();
     } catch (err: any) {
       alert(err.message || "Arquivo de backup inválido.");
@@ -159,14 +183,35 @@ export const SyncAndBackupModal: React.FC<SyncAndBackupModalProps> = ({
                 <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5">
                   <Cloud className="w-4 h-4 animate-pulse" />
                 </div>
-                <div className="text-xs sm:text-sm text-emerald-950">
+                <div className="text-xs sm:text-sm text-emerald-950 flex-1">
                   <p className="font-bold mb-1 flex items-center gap-1.5">
                     <span>Sincronização 100% Automática Ativada (Firebase Firestore)</span>
                   </p>
                   <p className="text-emerald-900/80 leading-relaxed">
-                    Você <strong>não precisa mais exportar nem importar arquivos manualmente</strong> para passar tarefas do celular para o computador! Toda criação, edição ou conclusão é salva instantaneamente na nuvem e sincronizada em tempo real em todas as suas telas abertas.
+                    Você <strong>não precisa exportar nem importar arquivos manualmente</strong> para passar tarefas do celular para o computador! Toda criação, edição ou conclusão é salva instantaneamente na nuvem e sincronizada em tempo real.
                   </p>
                 </div>
+              </div>
+
+              {/* Botão de Enviar Dados Locais para o Novo Projeto Firestore */}
+              <div className="p-4 rounded-xl border border-indigo-200 bg-indigo-50/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-bold text-indigo-950 flex items-center gap-1.5">
+                    <RefreshCw className="w-4 h-4 text-indigo-600" />
+                    <span>Recuperar / Reenviar Dados Locais para a Nuvem</span>
+                  </h4>
+                  <p className="text-xs text-indigo-900/80 mt-0.5">
+                    Trocou de projeto Firebase ou conectou uma conta nova e quer enviar as tarefas do banco local para a nuvem?
+                  </p>
+                </div>
+                <button
+                  onClick={handleForceSyncServerToCloud}
+                  disabled={isSyncingServer}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-xs transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingServer ? "animate-spin" : ""}`} />
+                  <span>{isSyncingServer ? "Sincronizando..." : "Sincronizar Agora"}</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
