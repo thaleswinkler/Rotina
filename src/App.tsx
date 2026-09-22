@@ -410,7 +410,13 @@ export default function App() {
             showToast("Conectado com sucesso com a conta Google!");
           } catch (err: any) {
             console.error("Erro no login:", err);
-            alert(err?.message || "Não foi possível conectar com o Google no momento.");
+            if (err?.code === "auth/unauthorized-domain") {
+              alert(
+                "O projeto 'practical-tracer-6ghtt' é gerenciado pelo Google AI Studio e não permite adicionar domínios externos (como o Render). Mas você não precisa fazer login com Google para salvar suas tarefas: a sincronização e leitura com o Firebase já funcionam automaticamente em tempo real para todos os seus dispositivos!"
+              );
+            } else {
+              alert(err?.message || "Não foi possível conectar com o Google no momento.");
+            }
           }
         }}
         onLogout={async () => {
