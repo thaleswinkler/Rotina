@@ -92,10 +92,9 @@ export function subscribeToTarefasFirestore(
   onError?: (err: Error) => void
 ): Unsubscribe {
   const colRef = collection(db, "tarefas");
-  const q = query(colRef, orderBy("criado_em", "desc"));
 
   return onSnapshot(
-    q,
+    colRef,
     (snapshot) => {
       const items: Tarefa[] = [];
       snapshot.forEach((docSnap) => {
@@ -105,6 +104,8 @@ export function subscribeToTarefasFirestore(
           id: docSnap.id,
         });
       });
+      // Sort client-side by criado_em descending so no compound index is needed
+      items.sort((a, b) => (b.criado_em || "").localeCompare(a.criado_em || ""));
       onUpdate(items);
     },
     (error) => {
@@ -119,10 +120,9 @@ export function subscribeToProjetosFirestore(
   onError?: (err: Error) => void
 ): Unsubscribe {
   const colRef = collection(db, "projetos");
-  const q = query(colRef, orderBy("criado_em", "desc"));
 
   return onSnapshot(
-    q,
+    colRef,
     (snapshot) => {
       const items: Projeto[] = [];
       snapshot.forEach((docSnap) => {
@@ -141,6 +141,7 @@ export function subscribeToProjetosFirestore(
           progresso_pct: progresso,
         });
       });
+      items.sort((a, b) => (b.criado_em || "").localeCompare(a.criado_em || ""));
       onUpdate(items);
     },
     (error) => {
@@ -336,34 +337,62 @@ export async function syncLocalServerToFirestore(forceOverride = false): Promise
     const colRef = collection(db, "tarefas");
     const snapshot = await getDocs(colRef);
     if (!forceOverride && !snapshot.empty) {
-      return { tarefas: 0, projetos: 0 };
+      return { tarefas: snapshot.size, projetos: 0 };
     }
 
-    const batch = writeBatch(db);
+    const currentUid = auth.currentUser?.uid || "anonymous";
 
-    tasksList.forEach((t) => {
-      const tDoc = doc(db, "tarefas", String(t.id));
-      batch.set(tDoc, {
-        ...t,
-        id: String(t.id),
-      });
+    // Write all tasks
+    const taskPromises = tasksList.map(async (t) => {
+      const docId = String(t.id || Date.now());
+      const tDoc = doc(db, "tarefas", docId);
+      await setDoc(
+        tDoc,
+        {
+          id: docId,
+          titulo: t.titulo || "",
+          descricao: t.descricao || "",
+          categoria: t.categoria || "Trabalho",
+          prioridade: t.prioridade || "Média",
+          data_vencimento: t.data_vencimento || new Date().toISOString().slice(0, 10),
+          status: t.status || "Pendente",
+          criado_em: t.criado_em || new Date().toISOString(),
+          userId: currentUid,
+        },
+        { merge: true }
+      );
     });
 
-    projsList.forEach((p) => {
-      const pDoc = doc(db, "projetos", String(p.id));
-      batch.set(pDoc, {
-        ...p,
-        id: String(p.id),
-      });
+    // Write all projects
+    const projPromises = projsList.map(async (p) => {
+      const docId = String(p.id || Date.now());
+      const pDoc = doc(db, "projetos", docId);
+      await setDoc(
+        pDoc,
+        {
+          id: docId,
+          titulo: p.titulo || "",
+          descricao: p.descricao || "",
+          categoria: p.categoria || "Trabalho",
+          data_limite: p.data_limite || "",
+          status: p.status || "Em Andamento",
+          criado_em: p.criado_em || new Date().toISOString(),
+          passos: Array.isArray(p.passos) ? p.passos : [],
+          userId: currentUid,
+        },
+        { merge: true }
+      );
     });
 
-    catsList.forEach((cat: string) => {
+    // Write categories
+    const catPromises = catsList.map(async (cat: string) => {
       const id = cat.toLowerCase().replace(/\s+/g, "_");
       const cDoc = doc(db, "categorias", id);
-      batch.set(cDoc, { nome: cat });
+      await setDoc(cDoc, { nome: cat, userId: currentUid }, { merge: true });
     });
 
-    await batch.commit();
+    await Promise.all([...taskPromises, ...projPromises, ...catPromises]);
+
     return { tarefas: tasksList.length, projetos: projsList.length };
   } catch (err) {
     console.error("Erro ao sincronizar dados do servidor para o Firestore:", err);

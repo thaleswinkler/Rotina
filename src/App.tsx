@@ -106,6 +106,23 @@ export default function App() {
     // 2. Real-time Firestore sync
     let hasSeeded = false;
 
+    // Load initial data from local server database right away so user sees their tasks immediately
+    Promise.all([
+      fetch("/api/tasks").then((r) => r.json()).catch(() => []),
+      fetch("/api/projects").then((r) => r.json()).catch(() => []),
+      fetch("/api/categories").then((r) => r.json()).catch(() => []),
+    ]).then(([localTasks, localProjs, localCats]) => {
+      if (Array.isArray(localTasks) && localTasks.length > 0) {
+        setTarefas((curr) => (curr.length === 0 ? localTasks : curr));
+      }
+      if (Array.isArray(localProjs) && localProjs.length > 0) {
+        setProjetos((curr) => (curr.length === 0 ? localProjs : curr));
+      }
+      if (Array.isArray(localCats) && localCats.length > 0) {
+        setCategorias((curr) => (curr.length === 0 ? localCats : curr));
+      }
+    });
+
     const unsubTarefas = subscribeToTarefasFirestore(
       async (firestoreTarefas) => {
         if (firestoreTarefas.length > 0) {
@@ -121,12 +138,16 @@ export default function App() {
             // Fallback load directly from server DB
             const res = await fetch("/api/tasks");
             const data = await res.json();
-            if (Array.isArray(data)) setTarefas(data);
+            if (Array.isArray(data) && data.length > 0) setTarefas(data);
           } finally {
             setLoading(false);
           }
         } else {
-          setTarefas([]);
+          // If still empty after seeding check, retain any local tasks
+          setTarefas((prev) => {
+            if (prev.length > 0) return prev;
+            return [];
+          });
           setLoading(false);
         }
       },
