@@ -11,6 +11,8 @@ import {
   HardDrive,
   Cloud,
   RefreshCw,
+  QrCode,
+  ShieldCheck,
 } from "lucide-react";
 import { syncLocalServerToFirestore } from "../lib/firebase";
 
@@ -19,6 +21,7 @@ interface SyncAndBackupModalProps {
   onClose: () => void;
   onDataRestored: () => Promise<void>;
   onShowToast: (text: string, type?: "success" | "info") => void;
+  initialTab?: "backup" | "celular" | "computador";
 }
 
 export const SyncAndBackupModal: React.FC<SyncAndBackupModalProps> = ({
@@ -26,8 +29,15 @@ export const SyncAndBackupModal: React.FC<SyncAndBackupModalProps> = ({
   onClose,
   onDataRestored,
   onShowToast,
+  initialTab = "celular",
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<"backup" | "celular" | "computador">("backup");
+  const [activeSubTab, setActiveSubTab] = useState<"backup" | "celular" | "computador">(initialTab);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setActiveSubTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isSyncingServer, setIsSyncingServer] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -280,27 +290,63 @@ export const SyncAndBackupModal: React.FC<SyncAndBackupModalProps> = ({
           {/* TAB 2: COMO ACESSAR NO CELULAR */}
           {activeSubTab === "celular" && (
             <div className="space-y-4">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
-                <span className="text-xs font-bold uppercase text-indigo-600 tracking-wider">
-                  Link Direto de Acesso
-                </span>
-                <p className="text-xs text-slate-500">
-                  Abra este link no navegador do seu smartphone (Chrome ou Safari) para usar todas as funções, inclusive o microfone para criar tarefas por voz:
-                </p>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    value={currentUrl}
-                    className="flex-1 px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-700 font-mono select-all"
+              {/* Security & Multi-Device Explanation Banner */}
+              <div className="p-4 bg-emerald-50/80 rounded-xl border border-emerald-200 flex items-start gap-3">
+                <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-emerald-950">
+                    Como funciona o acesso de outro dispositivo (sem precisar de login):
+                  </h4>
+                  <p className="text-xs text-emerald-900/90 leading-relaxed">
+                    Todos os seus <strong>20 afazeres e 13 projetos</strong> estão salvos diretamente no banco de dados na nuvem. Qualquer aparelho que abrir o seu link terá acesso imediato e tudo o que você alterar no celular sincroniza no computador instantaneamente!
+                  </p>
+                </div>
+              </div>
+
+              {/* QR Code and Direct URL Box */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center gap-4">
+                <div className="flex flex-col items-center gap-1.5 shrink-0 bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(
+                      "https://rotina-g7sl.onrender.com"
+                    )}`}
+                    alt="QR Code Rotina Pro"
+                    className="w-28 h-28 object-contain"
                   />
-                  <button
-                    onClick={handleCopyUrl}
-                    className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
-                  >
-                    {copiedUrl ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                    <span>{copiedUrl ? "Copiado!" : "Copiar"}</span>
-                  </button>
+                  <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1">
+                    <QrCode className="w-3 h-3 text-indigo-600" /> Aponte a câmera
+                  </span>
+                </div>
+
+                <div className="flex-1 space-y-2 text-center sm:text-left w-full">
+                  <span className="text-xs font-bold uppercase text-indigo-600 tracking-wider">
+                    Link Direto Oficial
+                  </span>
+                  <p className="text-xs text-slate-600">
+                    Acesse este endereço no navegador do seu celular ou em qualquer outro computador:
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value="https://rotina-g7sl.onrender.com"
+                      className="flex-1 px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 font-mono select-all font-semibold"
+                    />
+                    <button
+                      onClick={() => {
+                        if (navigator?.clipboard) {
+                          navigator.clipboard.writeText("https://rotina-g7sl.onrender.com");
+                          setCopiedUrl(true);
+                          onShowToast("Link copiado: https://rotina-g7sl.onrender.com", "success");
+                          setTimeout(() => setCopiedUrl(false), 2500);
+                        }
+                      }}
+                      className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                    >
+                      {copiedUrl ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <span>{copiedUrl ? "Copiado!" : "Copiar Link"}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 

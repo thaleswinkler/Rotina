@@ -71,6 +71,7 @@ export default function App() {
 
   // Backup & sync modal
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [backupModalInitialTab, setBackupModalInitialTab] = useState<"backup" | "celular" | "computador">("celular");
 
   // Toast feedback
   const [toast, setToast] = useState<{ text: string; type: "success" | "info" } | null>(null);
@@ -451,20 +452,23 @@ export default function App() {
       <Header
         metrics={metrics}
         hasGeminiKey={hasGeminiKey}
-        onOpenBackupModal={() => setIsBackupModalOpen(true)}
+        onOpenBackupModal={(tab = "celular") => {
+          setBackupModalInitialTab(tab);
+          setIsBackupModalOpen(true);
+        }}
         user={currentUser}
         onLoginGoogle={async () => {
           try {
             await loginWithGoogle();
             showToast("Conectado com sucesso com a conta Google!");
           } catch (err: any) {
-            console.error("Erro no login:", err);
+            console.warn("Informação sobre login:", err);
             if (err?.code === "auth/unauthorized-domain") {
-              alert(
-                "O projeto 'practical-tracer-6ghtt' é gerenciado pelo Google AI Studio e não permite adicionar domínios externos (como o Render). Mas você não precisa fazer login com Google para salvar suas tarefas: a sincronização e leitura com o Firebase já funcionam automaticamente em tempo real para todos os seus dispositivos!"
-              );
+              setBackupModalInitialTab("celular");
+              setIsBackupModalOpen(true);
+              showToast("Seu banco de dados já sincroniza em tempo real sem precisar de login!", "info");
             } else {
-              alert(err?.message || "Não foi possível conectar com o Google no momento.");
+              showToast(err?.message || "Não foi possível conectar com o Google no momento.", "info");
             }
           }
         }}
@@ -730,6 +734,7 @@ export default function App() {
       {/* Sync & Backup Modal */}
       <SyncAndBackupModal
         isOpen={isBackupModalOpen}
+        initialTab={backupModalInitialTab}
         onClose={() => setIsBackupModalOpen(false)}
         onDataRestored={async () => {
           try {

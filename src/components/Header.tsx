@@ -11,13 +11,14 @@ import {
   LogIn,
   LogOut,
   User as UserIcon,
+  Smartphone,
 } from "lucide-react";
 import { MetricSummary, UserProfile } from "../types";
 
 interface HeaderProps {
   metrics: MetricSummary;
   hasGeminiKey: boolean;
-  onOpenBackupModal: () => void;
+  onOpenBackupModal: (tab?: "backup" | "celular" | "computador") => void;
   user: UserProfile | null;
   onLoginGoogle: () => Promise<void>;
   onLogout: () => Promise<void>;
@@ -77,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
             </div>
 
-            {/* Google Login / Account Info */}
+            {/* User Profile or Mobile Access */}
             {user && !user.isAnonymous ? (
               <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs bg-slate-50 border border-slate-200 text-slate-700">
                 {user.photoURL ? (
@@ -103,22 +104,22 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             ) : (
               <button
-                onClick={onLoginGoogle}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-2xs hover:border-slate-300 transition-colors cursor-pointer"
-                title="Entrar com sua conta Google para sincronizar todos os seus dispositivos"
+                onClick={() => onOpenBackupModal("celular")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-2xs hover:border-indigo-300 transition-colors cursor-pointer"
+                title="Acessar no celular via QR Code ou link direto sincronizado"
               >
-                <LogIn className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Entrar com Google</span>
+                <Smartphone className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Acessar no Celular</span>
               </button>
             )}
 
             <button
-              onClick={onOpenBackupModal}
+              onClick={() => onOpenBackupModal("backup")}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-2xs hover:border-slate-300 transition-colors cursor-pointer"
-              title="Acessar no celular, computador e gerenciar banco na nuvem"
+              title="Acessar no celular, computador e gerenciar backup do banco"
             >
-              <HardDrive className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Celular & Nuvem</span>
+              <HardDrive className="w-3.5 h-3.5 text-slate-500" />
+              <span>Backup</span>
             </button>
 
             <div

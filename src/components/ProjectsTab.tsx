@@ -70,7 +70,11 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
   // Inline add step per project
   const [inlineStepInputs, setInlineStepInputs] = useState<{ [projectId: string]: string }>({});
   const [inlineStepDates, setInlineStepDates] = useState<{ [projectId: string]: string }>({});
-  const [editingStepDate, setEditingStepDate] = useState<{ projectId: string | number; stepId: string | number } | null>(null);
+  const [editingStepDate, setEditingStepDate] = useState<{
+    projectId: string | number;
+    stepId: string | number;
+    tempDate: string;
+  } | null>(null);
 
   // Filter state inside projects
   const [filtroCategoria, setFiltroCategoria] = useState<string>("Todas");
@@ -765,23 +769,69 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                           <div className="flex items-center gap-1.5 shrink-0">
                             {/* Prazo da etapa */}
                             {editingStepDate?.projectId === proj.id && editingStepDate?.stepId === step.id ? (
-                              <div className="flex items-center gap-1 bg-white border border-indigo-300 rounded-lg p-0.5 shadow-xs">
+                              <div className="flex items-center gap-1.5 bg-white border border-indigo-400 rounded-lg p-1 shadow-md ring-2 ring-indigo-500/20 z-10">
                                 <input
                                   type="date"
-                                  defaultValue={step.data_limite || ""}
+                                  value={editingStepDate.tempDate}
                                   autoFocus
                                   onChange={(e) => {
-                                    handleUpdateStepDate(proj.id, step.id, e.target.value);
+                                    const val = e.target.value;
+                                    setEditingStepDate((prev) => (prev ? { ...prev, tempDate: val } : null));
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      handleUpdateStepDate(proj.id, step.id, editingStepDate.tempDate);
+                                      setEditingStepDate(null);
+                                    } else if (e.key === "Escape") {
+                                      setEditingStepDate(null);
+                                    }
+                                  }}
+                                  className="text-xs px-1.5 py-0.5 border border-slate-200 rounded-md focus:outline-none focus:border-indigo-500 text-slate-800 cursor-pointer"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleUpdateStepDate(proj.id, step.id, editingStepDate.tempDate);
                                     setEditingStepDate(null);
                                   }}
-                                  onBlur={() => setEditingStepDate(null)}
-                                  className="text-[11px] px-1 py-0.5 border-none focus:outline-hidden text-slate-800 cursor-pointer"
-                                />
+                                  className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-semibold cursor-pointer shadow-xs transition-colors"
+                                  title="Salvar prazo"
+                                >
+                                  Salvar
+                                </button>
+                                {step.data_limite && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleUpdateStepDate(proj.id, step.id, "");
+                                      setEditingStepDate(null);
+                                    }}
+                                    className="px-1.5 py-0.5 text-xs text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                                    title="Remover prazo"
+                                  >
+                                    Limpar
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingStepDate(null)}
+                                  className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer transition-colors"
+                                  title="Cancelar"
+                                >
+                                  ✕
+                                </button>
                               </div>
                             ) : step.data_limite ? (
                               <button
                                 type="button"
-                                onClick={() => setEditingStepDate({ projectId: proj.id, stepId: step.id })}
+                                onClick={() =>
+                                  setEditingStepDate({
+                                    projectId: proj.id,
+                                    stepId: step.id,
+                                    tempDate: step.data_limite || "",
+                                  })
+                                }
                                 className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center gap-1 transition-colors cursor-pointer"
                                 title="Clique para alterar o prazo desta etapa"
                               >
@@ -791,7 +841,13 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => setEditingStepDate({ projectId: proj.id, stepId: step.id })}
+                                onClick={() =>
+                                  setEditingStepDate({
+                                    projectId: proj.id,
+                                    stepId: step.id,
+                                    tempDate: "",
+                                  })
+                                }
                                 className="text-[11px] font-medium px-1.5 py-0.5 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors flex items-center gap-1 cursor-pointer"
                                 title="Definir prazo para esta etapa"
                               >
