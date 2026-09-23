@@ -1,141 +1,621 @@
 {
-  "nextId": 10,
-  "nextPassoId": 20,
-  "categorias": [
-    "Trabalho",
-    "Pessoal",
-    "Estudos",
-    "Saúde",
-    "Finanças",
-    "Projetos"
-  ],
   "tarefas": [
     {
-      "id": 1,
-      "titulo": "Revisar apresentação de metas trimestrais",
-      "descricao": "Alinhar KPIs e métricas com os líderes de equipe antes da reunião geral.",
-      "categoria": "Trabalho",
-      "prioridade": "Alta",
-      "data_vencimento": "2026-09-17",
+      "id": "0y5OqGVKTy7qe1qM7O82",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "prioridade": "Baixa",
       "status": "Pendente",
-      "criado_em": "2026-09-17T09:00:00.000Z"
-    },
-    {
-      "id": 2,
-      "titulo": "Corrida matinal de 5km",
-      "descricao": "Treino cardiovascular leve na pista do parque.",
-      "categoria": "Saúde",
-      "prioridade": "Média",
+      "criado_em": "2026-09-17T17:37:42.193Z",
+      "descricao": "22 e 50 Aux enc mat não desligar luz, dia 17",
       "data_vencimento": "2026-09-17",
-      "status": "Concluída",
-      "criado_em": "2026-09-17T08:00:00.000Z"
+      "titulo": "Lançar alunos",
+      "categoria": "Trabalho"
     },
     {
-      "id": 3,
-      "titulo": "Estudar módulo de Inteligência Artificial e Gemini",
-      "descricao": "Assistir às aulas de Function Calling e áudio multimodal com Python.",
-      "categoria": "Estudos",
-      "prioridade": "Alta",
-      "data_vencimento": "2026-09-20",
-      "status": "Pendente",
-      "criado_em": "2026-09-17T09:10:00.000Z"
-    },
-    {
-      "id": 4,
-      "titulo": "Revisar fatura do cartão e investimentos",
-      "descricao": "Categorizar despesas do mês e alocar aporte mensal.",
+      "criado_em": "2026-09-17T17:51:02.889Z",
+      "descricao": "",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
       "categoria": "Finanças",
-      "prioridade": "Média",
-      "data_vencimento": "2026-09-22",
+      "data_vencimento": "2027-09-01",
       "status": "Pendente",
-      "criado_em": "2026-09-17T09:15:00.000Z"
+      "prioridade": "Alta",
+      "id": "24DAKITJ14OBSVlyDqzT",
+      "titulo": "Cancelar Gemini"
+    },
+    {
+      "titulo": "Pagamento Internet",
+      "id": "4df9SQeruTBY2H3ZDU9Q",
+      "data_vencimento": "2026-10-07",
+      "criado_em": "2026-09-17T17:39:43.043Z",
+      "descricao": "",
+      "categoria": "Finanças",
+      "status": "Pendente",
+      "prioridade": "Alta",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2"
+    },
+    {
+      "id": "6IQxPR7UIMFLO21baL7T",
+      "data_vencimento": "2026-11-27",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "categoria": "Estudos",
+      "descricao": "27 a 30",
+      "criado_em": "2026-09-17T17:46:02.895Z",
+      "status": "Pendente",
+      "prioridade": "Alta",
+      "titulo": "Prova Facul"
+    },
+    {
+      "data_vencimento": "2027-03-05",
+      "id": "CRtBp6qHdyIiDBEunjrM",
+      "prioridade": "Alta",
+      "titulo": "Aniversário Pai",
+      "criado_em": "2026-09-17T17:48:56.729Z",
+      "descricao": "Dia 6",
+      "categoria": "Datas",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "status": "Pendente"
+    },
+    {
+      "data_vencimento": "2027-10-08",
+      "status": "Pendente",
+      "criado_em": "2026-09-17T17:43:53.014Z",
+      "descricao": "",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "categoria": "Finanças",
+      "titulo": "IPVA City 3ª Parcela",
+      "prioridade": "Alta",
+      "id": "HhziVyvakKvwrqYFVDBA"
+    },
+    {
+      "id": "K4YEPTcrJzXvy3VU3zhM",
+      "prioridade": "Alta",
+      "data_vencimento": "2026-11-06",
+      "titulo": "Prova Facul",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-09-17T17:45:29.114Z",
+      "descricao": "6 a 9",
+      "categoria": "Estudos",
+      "status": "Pendente"
+    },
+    {
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "prioridade": "Baixa",
+      "data_vencimento": "2026-09-25",
+      "status": "Pendente",
+      "categoria": "Pessoal",
+      "criado_em": "2026-09-17T17:51:25.918Z",
+      "descricao": "",
+      "id": "KuhjxzeIaCh4BjR2ipdU",
+      "titulo": "Epic Games"
+    },
+    {
+      "titulo": "IPVA city 1ª Parcela",
+      "status": "Pendente",
+      "prioridade": "Alta",
+      "id": "MJPzHfuZ5ONncIetU4nr",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "descricao": "",
+      "criado_em": "2026-09-17T17:43:00.274Z",
+      "data_vencimento": "2027-08-09",
+      "categoria": "Finanças"
+    },
+    {
+      "data_vencimento": "2027-09-10",
+      "id": "MOJ66sjInImrC4GuQyyB",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "categoria": "Finanças",
+      "descricao": "",
+      "criado_em": "2026-09-17T17:43:25.804Z",
+      "status": "Pendente",
+      "prioridade": "Alta",
+      "titulo": "IPVA city 2ª Parcela"
+    },
+    {
+      "prioridade": "Média",
+      "titulo": "Cadastrar SIPO",
+      "descricao": "DIEx nº 6747",
+      "criado_em": "2026-09-18T00:27:00.020Z",
+      "categoria": "Datas",
+      "data_vencimento": "2026-09-28",
+      "status": "Pendente",
+      "id": "MiBb70qn2mAZJMSh8gfF",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2"
+    },
+    {
+      "status": "Pendente",
+      "data_vencimento": "2026-10-01",
+      "prioridade": "Alta",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "id": "QkKVlgZkkqhoardL3JzP",
+      "titulo": "Indicar imóvel no notablu",
+      "categoria": "Finanças",
+      "criado_em": "2026-09-17T17:51:59.505Z",
+      "descricao": ""
+    },
+    {
+      "id": "agbiX6s5yZVY1sYpiEur",
+      "titulo": "Prova Facul",
+      "criado_em": "2026-09-17T17:44:54.986Z",
+      "descricao": "2 a 5",
+      "categoria": "Finanças",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "prioridade": "Alta",
+      "status": "Pendente",
+      "data_vencimento": "2026-10-02"
+    },
+    {
+      "descricao": "Amazon\nCasa 2210,40 30/106\nFacul\nLuz\nBB \nIptv\nGrêmio",
+      "criado_em": "2026-09-17T17:38:42.900Z",
+      "prioridade": "Alta",
+      "id": "at3qNd8pl3H1ovO9Pvnf",
+      "status": "Pendente",
+      "categoria": "Finanças",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "titulo": "Pagamentos",
+      "data_vencimento": "2026-10-05"
+    },
+    {
+      "id": "dCSjhLLHicB7da04OF0Z",
+      "data_vencimento": "2027-10-29",
+      "titulo": "Licenciamento City",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "status": "Pendente",
+      "categoria": "Finanças",
+      "criado_em": "2026-09-17T17:44:14.033Z",
+      "descricao": "",
+      "prioridade": "Alta"
+    },
+    {
+      "data_vencimento": "2027-07-31",
+      "titulo": "Aniversário Mãe",
+      "prioridade": "Alta",
+      "id": "kH1RN8voHnawS9SMUZA4",
+      "categoria": "Datas",
+      "descricao": "",
+      "criado_em": "2026-09-17T17:48:29.247Z",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2"
+    },
+    {
+      "categoria": "Finanças",
+      "prioridade": "Alta",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-09-17T17:40:05.751Z",
+      "descricao": "",
+      "status": "Pendente",
+      "data_vencimento": "2026-10-09",
+      "titulo": "Pagamento c6",
+      "id": "nBx61RjhwQtNSrnUiK1f"
+    },
+    {
+      "categoria": "Datas",
+      "descricao": "",
+      "criado_em": "2026-09-17T17:48:01.919Z",
+      "prioridade": "Alta",
+      "titulo": "Aniversário Joice",
+      "data_vencimento": "2026-12-08",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "status": "Pendente",
+      "id": "ukBcSYZ6uu75e1X2bHSP"
+    },
+    {
+      "titulo": "Aniversário Casamento",
+      "prioridade": "Alta",
+      "data_vencimento": "2027-07-28",
+      "categoria": "Pessoal",
+      "status": "Pendente",
+      "id": "ukDHOwJ1G5jvAkcaLeP4",
+      "descricao": "",
+      "criado_em": "2026-09-17T17:47:19.409Z",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2"
+    },
+    {
+      "data_vencimento": "2027-03-31",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "prioridade": "Alta",
+      "id": "zTZnB6fWQ7qAaidJHpwP",
+      "titulo": "Licenciamento Biz",
+      "categoria": "Finanças",
+      "descricao": "",
+      "criado_em": "2026-09-17T17:40:36.694Z"
     }
   ],
   "projetos": [
     {
-      "id": 1,
-      "titulo": "Lançamento da Nova Plataforma Web",
-      "descricao": "Reformulação completa do produto digital com integração multimodal e design responsivo.",
-      "categoria": "Trabalho",
-      "data_limite": "2026-10-15",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "data_limite": "2027-03-17",
       "status": "Em Andamento",
-      "criado_em": "2026-09-17T09:00:00.000Z",
+      "categoria": "Trabalho",
+      "criado_em": "2026-09-17T18:29:27.778Z",
+      "descricao": "ETP117/2026 TR83/2026 PESQUISA DE PREÇOS234/2026 GERENCIAMENTO DE RISCOS42/2026 DIEx ABERTURA PROCESSO LICITATÓRIO 3202",
       "passos": [
         {
-          "id": 1,
-          "projeto_id": 1,
-          "titulo": "Mapear requisitos de produto e arquitetura",
-          "concluido": true,
-          "ordem": 1
-        },
-        {
-          "id": 2,
-          "projeto_id": 1,
-          "titulo": "Criar protótipos de alta fidelidade e design system",
-          "concluido": true,
-          "ordem": 2
-        },
-        {
-          "id": 3,
-          "projeto_id": 1,
-          "titulo": "Desenvolver endpoints da API e integração Gemini",
+          "projeto_id": "",
           "concluido": false,
+          "ordem": 1,
+          "titulo": "Cmt assinar documentos",
+          "id": "step_1789669767777_0"
+        },
+        {
+          "projeto_id": "",
+          "concluido": false,
+          "titulo": "Pregão rodando",
+          "id": "step_1789669767777_1",
+          "ordem": 2
+        }
+      ],
+      "titulo": "Pregão Serviços",
+      "id": "1D1gDpOo14nOYSI6SVSZ"
+    },
+    {
+      "titulo": "Pregão Cadeiras para Sala de Instrução",
+      "passos": [
+        {
+          "projeto_id": "",
+          "ordem": 1,
+          "titulo": "Cmt assinar documentos",
+          "id": "step_1789669866913_0",
+          "concluido": false
+        },
+        {
+          "projeto_id": "",
+          "titulo": "Rodando",
+          "concluido": false,
+          "ordem": 2,
+          "id": "step_1789669866913_1"
+        }
+      ],
+      "criado_em": "2026-09-17T18:31:06.913Z",
+      "descricao": "ETP116/2026 TR78/2026 PESQUISA DE PREÇOS219/2026 GERENCIAMENTO DE RISCOS40/2026 DIEx ABERTURA PROCESSO LICITATÓRIO3106",
+      "status": "Em Andamento",
+      "categoria": "Trabalho",
+      "id": "CnGuQMQSwRSZqjreAV4q",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "data_limite": "2027-03-17"
+    },
+    {
+      "id": "EiauBEurzFhl9XhOMRl1",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-09-17T17:47:41.506Z",
+      "descricao": "",
+      "data_limite": "2026-12-31",
+      "status": "Em Andamento",
+      "categoria": "Estudos",
+      "passos": [
+        {
+          "ordem": 1,
+          "id": "step_1789667261504_0",
+          "concluido": true,
+          "titulo": "Iniciar Curso",
+          "projeto_id": ""
+        },
+        {
+          "id": "step_1789667261504_1",
+          "titulo": "Concluir Curso",
+          "ordem": 2,
+          "projeto_id": "",
+          "concluido": false
+        },
+        {
+          "id": "step_1789667809646_nbuu",
+          "projeto_id": "EiauBEurzFhl9XhOMRl1",
+          "titulo": "Prova Final: 25 SET",
+          "concluido": false,
+          "ordem": 3
+        }
+      ],
+      "titulo": "Curso de Joomla EBAula"
+    },
+    {
+      "criado_em": "2026-09-17T18:28:25.203Z",
+      "descricao": "",
+      "categoria": "Trabalho",
+      "titulo": "Pregão de Expediente",
+      "passos": [
+        {
+          "concluido": true,
+          "ordem": 1,
+          "id": "step_1789669705202_0",
+          "titulo": "ETP 118/2026",
+          "projeto_id": ""
+        },
+        {
+          "projeto_id": "",
+          "ordem": 2,
+          "titulo": "TR 80/2026",
+          "concluido": true,
+          "id": "step_1789669705202_1"
+        },
+        {
+          "id": "step_1789669705202_2",
+          "projeto_id": "",
+          "titulo": "PP 221/2026",
+          "concluido": true,
           "ordem": 3
         },
         {
-          "id": 4,
-          "projeto_id": 1,
-          "titulo": "Executar testes de usabilidade com usuários beta",
-          "concluido": false,
+          "id": "step_1789669705202_3",
+          "projeto_id": "",
+          "titulo": "MGR 41/2026",
+          "concluido": true,
           "ordem": 4
         },
         {
-          "id": 5,
-          "projeto_id": 1,
-          "titulo": "Deploy em produção e validação final",
+          "id": "step_1789669705202_4",
+          "titulo": "DIEx 3081/2026",
+          "ordem": 5,
+          "projeto_id": "",
+          "concluido": true
+        },
+        {
+          "ordem": 6,
+          "id": "step_1789669705202_5",
           "concluido": false,
-          "ordem": 5
+          "titulo": "Cmt Assinar os documentos",
+          "projeto_id": ""
+        },
+        {
+          "projeto_id": "",
+          "id": "step_1789669705202_6",
+          "ordem": 7,
+          "titulo": "Pregão rodando",
+          "concluido": false
+        }
+      ],
+      "id": "HiDO8RN6uxDDfSM0yVnQ",
+      "data_limite": "2027-03-17",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "status": "Em Andamento"
+    },
+    {
+      "descricao": "ETP121/2026 TR84/2026 PESQUISA DE PREÇOS232/2026 GERENCIAMENTO DE RISCOS44/2026 DIEx ABERTURA PROCESSO LICITATÓRIO 3132",
+      "criado_em": "2026-09-17T18:30:17.490Z",
+      "categoria": "Trabalho",
+      "titulo": "Pregão Janelas",
+      "passos": [
+        {
+          "id": "step_1789669817490_0",
+          "concluido": false,
+          "ordem": 1,
+          "projeto_id": "",
+          "titulo": "Cmt assinar documentos"
+        },
+        {
+          "projeto_id": "",
+          "titulo": "Pregão rodando",
+          "concluido": false,
+          "ordem": 2,
+          "id": "step_1789669817490_1"
+        }
+      ],
+      "id": "INr2aZkIa1AYs8GZKeQg",
+      "data_limite": "2027-03-17",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "status": "Em Andamento"
+    },
+    {
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "status": "Em Andamento",
+      "id": "J0ivc4iS3WZLPGeOUqg5",
+      "descricao": "ETP82/2026TR51/2026PESQUISA DE PREÇOS183/2026 GERENCIAMENTO DE RISCOS12/2026 DFD 93/2026 DIEx ABERTURA PROCESSO LICITATÓRIO2842",
+      "criado_em": "2026-09-17T18:31:56.085Z",
+      "data_limite": "2027-03-17",
+      "categoria": "Trabalho",
+      "titulo": "Pregão Biblioteca e SPPA",
+      "passos": [
+        {
+          "id": "step_1789669916085_0",
+          "concluido": false,
+          "ordem": 1,
+          "titulo": "Cmt assinar documentos",
+          "projeto_id": ""
+        },
+        {
+          "ordem": 2,
+          "titulo": "Rodando",
+          "id": "step_1789669916085_1",
+          "concluido": false,
+          "projeto_id": ""
         }
       ]
     },
     {
-      "id": 2,
-      "titulo": "Plano de Treino e Saúde para Meia Maratona",
-      "descricao": "Rotina de hábitos saudáveis, reeducação alimentar e preparação física.",
-      "categoria": "Saúde",
-      "data_limite": "2026-10-30",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "data_limite": "2026-10-17",
       "status": "Em Andamento",
-      "criado_em": "2026-09-17T09:05:00.000Z",
+      "id": "MlRmuk1uCZMe2wBkfH3d",
+      "categoria": "Pessoal",
+      "passos": [],
+      "titulo": "Animes / Jogos",
+      "criado_em": "2026-09-17T17:50:15.716Z",
+      "descricao": "Anime 1112  Mangá 1174  Dune Awaking  metal gear snake eater Bloodlines 2  a quiet place  dreadzone  hell is us Aila Echos of the end"
+    },
+    {
+      "data_limite": "2026-12-31",
+      "categoria": "Datas",
+      "criado_em": "2026-09-17T18:13:12.759Z",
+      "descricao": "",
       "passos": [
         {
-          "id": 6,
-          "projeto_id": 2,
-          "titulo": "Consulta com nutricionista esportivo",
           "concluido": true,
+          "id": "step_1789668792759_0",
+          "titulo": "Concluir curso Cat 0",
+          "projeto_id": "",
           "ordem": 1
         },
         {
-          "id": 7,
-          "projeto_id": 2,
-          "titulo": "Planilha de treinos aeróbicos progressivos",
+          "titulo": "Concluir Curso Cat 1",
+          "ordem": 2,
           "concluido": true,
-          "ordem": 2
+          "projeto_id": "",
+          "id": "step_1789668792759_1"
         },
         {
-          "id": 8,
-          "projeto_id": 2,
-          "titulo": "Adquirir tênis com placa de amortecimento",
           "concluido": false,
-          "ordem": 3
+          "titulo": "Mandar DIEx publicar em BI",
+          "projeto_id": "NZu8sF8hpaxkMT070QAG",
+          "ordem": 3,
+          "id": "step_1789688259872_tx57"
         },
         {
-          "id": 9,
-          "projeto_id": 2,
-          "titulo": "Completar simulado de 18km no parque",
+          "id": "step_1789691092563_h0h1",
+          "projeto_id": "NZu8sF8hpaxkMT070QAG",
+          "ordem": 4,
           "concluido": false,
-          "ordem": 4
+          "titulo": "Publicou"
         }
-      ]
+      ],
+      "titulo": "Curso CIAVEx Drone",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "id": "NZu8sF8hpaxkMT070QAG",
+      "status": "Em Andamento"
+    },
+    {
+      "titulo": "Projeto Faculdade",
+      "passos": [
+        {
+          "id": "step_1789667625191_0",
+          "concluido": true,
+          "ordem": 1,
+          "projeto_id": "",
+          "titulo": "Terminar o projeto"
+        },
+        {
+          "projeto_id": "UNsqAPUElSyV5rb8So12",
+          "concluido": false,
+          "id": "step_1789671869515_rilf",
+          "ordem": 2,
+          "titulo": "Terminar o projeto, dia 28 SET"
+        }
+      ],
+      "id": "UNsqAPUElSyV5rb8So12",
+      "status": "Em Andamento",
+      "data_limite": "2026-09-28",
+      "criado_em": "2026-09-17T17:53:45.192Z",
+      "descricao": "",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "categoria": "Estudos"
+    },
+    {
+      "passos": [
+        {
+          "id": "step_1789666522734_0",
+          "ordem": 1,
+          "concluido": true,
+          "projeto_id": "",
+          "titulo": "Publicação em BI do relatório de veracidade"
+        },
+        {
+          "concluido": false,
+          "projeto_id": "",
+          "titulo": "Cadastramento no sicapex",
+          "ordem": 2,
+          "id": "step_1789666522734_1"
+        }
+      ],
+      "titulo": "Cadastramento Espanhol",
+      "id": "iIL2dFtniPpo7zuFf1ks",
+      "status": "Em Andamento",
+      "criado_em": "2026-09-17T17:35:22.736Z",
+      "descricao": "",
+      "categoria": "Trabalho",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "data_limite": "2026-10-17"
+    },
+    {
+      "passos": [
+        {
+          "projeto_id": "",
+          "titulo": "Iniciar 26 SET",
+          "id": "step_1789667768411_0",
+          "ordem": 1,
+          "concluido": false
+        }
+      ],
+      "titulo": "CAS",
+      "data_limite": "2027-07-30",
+      "criado_em": "2026-09-17T17:56:08.412Z",
+      "descricao": "",
+      "status": "Em Andamento",
+      "categoria": "Trabalho",
+      "id": "iysXumS1hX57maINLBsl",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2"
+    },
+    {
+      "criado_em": "2026-09-17T19:12:22.789Z",
+      "descricao": "",
+      "id": "psi3PU0DJ7K2FWHfMBvr",
+      "categoria": "Datas",
+      "status": "Em Andamento",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "titulo": "Provas italiano",
+      "passos": [
+        {
+          "id": "step_1789672342788_0",
+          "titulo": "Prova CL 21/09",
+          "ordem": 1,
+          "concluido": true,
+          "projeto_id": ""
+        },
+        {
+          "titulo": "Prova CA 22/09",
+          "ordem": 2,
+          "concluido": false,
+          "projeto_id": "",
+          "id": "step_1789672342788_1"
+        },
+        {
+          "concluido": false,
+          "ordem": 3,
+          "projeto_id": "",
+          "titulo": "Divulgação resultados 6/OUT",
+          "id": "step_1789672342788_2"
+        }
+      ],
+      "data_limite": "2026-10-06"
+    },
+    {
+      "data_limite": "2027-03-15",
+      "titulo": "Curso Cisco",
+      "passos": [
+        {
+          "concluido": false,
+          "projeto_id": "",
+          "ordem": 1,
+          "titulo": "Início Curso 19 OUT",
+          "id": "step_1789669111898_0"
+        },
+        {
+          "ordem": 2,
+          "titulo": "Término do Curso 13 DEZ",
+          "projeto_id": "",
+          "concluido": false,
+          "id": "step_1789669111898_1"
+        },
+        {
+          "concluido": false,
+          "id": "step_1789669111898_2",
+          "ordem": 3,
+          "titulo": "Cadastramento Ficha SICAPEx 15 MAR 27",
+          "projeto_id": ""
+        }
+      ],
+      "criado_em": "2026-09-17T18:18:31.898Z",
+      "descricao": "",
+      "status": "Em Andamento",
+      "categoria": "Estudos",
+      "id": "skO5yOSLD3Uk1lxRNAOy",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2"
     }
+  ],
+  "categorias": [
+    "Datas",
+    "Estudos",
+    "Finanças",
+    "Pessoal",
+    "Projetos",
+    "Saúde",
+    "Trabalho"
   ]
 }

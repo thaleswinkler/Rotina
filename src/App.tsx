@@ -111,17 +111,27 @@ export default function App() {
       fetch("/api/tasks").then((r) => r.json()).catch(() => []),
       fetch("/api/projects").then((r) => r.json()).catch(() => []),
       fetch("/api/categories").then((r) => r.json()).catch(() => []),
-    ]).then(([localTasks, localProjs, localCats]) => {
-      if (Array.isArray(localTasks) && localTasks.length > 0) {
-        setTarefas((curr) => (curr.length === 0 ? localTasks : curr));
-      }
-      if (Array.isArray(localProjs) && localProjs.length > 0) {
-        setProjetos((curr) => (curr.length === 0 ? localProjs : curr));
-      }
-      if (Array.isArray(localCats) && localCats.length > 0) {
-        setCategorias((curr) => (curr.length === 0 ? localCats : curr));
-      }
-    });
+    ])
+      .then(([localTasks, localProjs, localCats]) => {
+        if (Array.isArray(localTasks) && localTasks.length > 0) {
+          setTarefas((curr) => (curr.length === 0 ? localTasks : curr));
+        }
+        if (Array.isArray(localProjs) && localProjs.length > 0) {
+          setProjetos((curr) => (curr.length === 0 ? localProjs : curr));
+        }
+        if (Array.isArray(localCats) && localCats.length > 0) {
+          setCategorias((curr) => (curr.length === 0 ? localCats : curr));
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+
+    // Safety timeout: never let the UI stay in loading state more than 400ms
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 400);
 
     const unsubTarefas = subscribeToTarefasFirestore(
       async (firestoreTarefas) => {
@@ -168,6 +178,7 @@ export default function App() {
     });
 
     return () => {
+      clearTimeout(safetyTimer);
       unsubAuth();
       unsubTarefas();
       unsubProjetos();
@@ -238,24 +249,26 @@ export default function App() {
       prev.map((t) => (String(t.id) === String(id) ? { ...t, status: novoStatus } : t))
     );
 
+    // 1. Update server API
+    fetch(`/api/tasks/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: novoStatus }),
+    }).catch((e) => console.warn("Erro ao atualizar servidor:", e));
+
+    // 2. Sync to Firestore in background
     try {
       await updateTarefaFirestore(id, { status: novoStatus });
-      fetch(`/api/tasks/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: novoStatus }),
-      }).catch(() => {});
-      showToast(
-        novoStatus === "Concluída"
-          ? "🎉 Tarefa concluída na nuvem!"
-          : "Tarefa reaberta.",
-        "success"
-      );
-    } catch {
-      setTarefas((prev) =>
-        prev.map((t) => (String(t.id) === String(id) ? { ...t, status: currentStatus } : t))
-      );
+    } catch (err) {
+      console.warn("Firestore sync skipped:", err);
     }
+
+    showToast(
+      novoStatus === "Concluída"
+        ? "🎉 Tarefa concluída!"
+        : "Tarefa reaberta.",
+      "success"
+    );
   };
 
   // Handler: Toggle Project Step
@@ -278,37 +291,44 @@ export default function App() {
       })
     );
 
+    // 1. Update server API
+    fetch(`/api/projects/${projectId}/passos/${step.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ concluido: !step.concluido }),
+    }).catch((e) => console.warn("Erro ao atualizar passo no servidor:", e));
+
+    // 2. Sync to Firestore in background
     try {
       const proj = projetos.find((p) => String(p.id) === String(projectId));
       if (proj) {
         await togglePassoFirestore(projectId, step.id, proj.passos);
       }
-      fetch(`/api/projects/${projectId}/passos/${step.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ concluido: !step.concluido }),
-      }).catch(() => {});
-      if (!step.concluido) {
-        showToast("✅ Etapa concluída!", "success");
-      }
     } catch (err) {
-      console.error(err);
+      console.warn("Firestore step sync skipped:", err);
+    }
+
+    if (!step.concluido) {
+      showToast("✅ Etapa concluída!", "success");
     }
   };
 
   // Handler: Delete Task
   const handleDeleteTask = async (id: string | number) => {
-    const previous = [...tarefas];
     setTarefas((prev) => prev.filter((t) => String(t.id) !== String(id)));
 
+    // 1. Delete from server API
+    fetch(`/api/tasks/${id}`, { method: "DELETE" }).catch((e) =>
+      console.warn("Erro ao deletar tarefa no servidor:", e)
+    );
+
+    // 2. Delete from Firestore in background
     try {
       await deleteTarefaFirestore(id);
-      fetch(`/api/tasks/${id}`, { method: "DELETE" }).catch(() => {});
-      showToast("Tarefa excluída da nuvem.", "info");
-    } catch {
-      setTarefas(previous);
-      alert("Erro ao excluir tarefa.");
+    } catch (err) {
+      console.warn("Firestore delete skipped:", err);
     }
+    showToast("Tarefa excluída.", "info");
   };
 
   // Handler: Create Task manually
@@ -321,13 +341,34 @@ export default function App() {
   }) => {
     setIsSyncing(true);
     try {
-      await addTarefaFirestore(novaTarefa, currentUser?.uid);
-      fetch("/api/tasks", {
+      // 1. Save to server DB first
+      const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(novaTarefa),
-      }).catch(() => {});
-      showToast("✅ Tarefa salva na nuvem!");
+      });
+      const created = await res.json().catch(() => null);
+
+      if (created && created.id) {
+        setTarefas((prev) => [created, ...prev.filter((t) => String(t.id) !== String(created.id))]);
+      } else {
+        const localTask: Tarefa = {
+          ...novaTarefa,
+          id: Date.now(),
+          status: "Pendente",
+          criado_em: new Date().toISOString(),
+        };
+        setTarefas((prev) => [localTask, ...prev]);
+      }
+
+      // 2. Sync to Firestore in background
+      try {
+        await addTarefaFirestore(novaTarefa, currentUser?.uid);
+      } catch (err) {
+        console.warn("Firestore add skipped:", err);
+      }
+
+      showToast("✅ Tarefa cadastrada com sucesso!");
     } catch (err: any) {
       console.error(err);
       throw new Error(err.message || "Erro ao criar tarefa.");
@@ -338,38 +379,46 @@ export default function App() {
 
   // Handler: Add Category
   const handleAddCategory = async (nome: string) => {
+    if (!categorias.includes(nome)) {
+      setCategorias((prev) => [...prev, nome]);
+    }
+    fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome }),
+    }).catch(console.error);
+
     try {
       await addCategoriaFirestore(nome);
-      fetch("/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome }),
-      }).catch(() => {});
-      showToast(`Categoria '${nome}' salva na nuvem!`);
-    } catch (err: any) {
-      console.error(err);
-      throw new Error(err.message || "Erro ao adicionar categoria.");
+    } catch (err) {
+      console.warn("Firestore category skipped:", err);
     }
+    showToast(`Categoria '${nome}' salva!`);
   };
 
   // Handler: Save Edited Task
   const handleSaveEditedTask = async (id: string | number, updated: Partial<Tarefa>) => {
+    setTarefas((prev) =>
+      prev.map((t) => (String(t.id) === String(id) ? { ...t, ...updated } : t))
+    );
+
+    fetch(`/api/tasks/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updated),
+    }).catch(console.error);
+
     try {
       await updateTarefaFirestore(id, updated);
-      fetch(`/api/tasks/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updated),
-      }).catch(() => {});
-      showToast("Tarefa atualizada na nuvem!");
-    } catch (err: any) {
-      console.error(err);
-      throw new Error(err.message || "Erro ao atualizar tarefa.");
+    } catch (err) {
+      console.warn("Firestore update skipped:", err);
     }
+    showToast("Tarefa atualizada com sucesso!");
   };
 
   // Handler: Voice task created
   const handleVoiceTaskCreated = async (nova: Tarefa) => {
+    setTarefas((prev) => [nova, ...prev.filter((t) => String(t.id) !== String(nova.id))]);
     try {
       await addTarefaFirestore(
         {
@@ -381,11 +430,11 @@ export default function App() {
         },
         currentUser?.uid
       );
-      showToast("🎉 Tarefa gravada por voz e salva na nuvem!");
     } catch (err) {
-      console.error(err);
-      setTarefas((prev) => [nova, ...prev]);
+      console.warn("Firestore voice sync skipped:", err);
     }
+    showToast("🎙️ Tarefa de voz cadastrada!", "success");
+    setActiveTab("tarefas");
   };
 
   return (
