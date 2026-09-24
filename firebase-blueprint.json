@@ -29,8 +29,9 @@
         "descricao": { "type": "string" },
         "categoria": { "type": "string" },
         "data_limite": { "type": "string" },
-        "status": { "type": "string", "enum": ["Em Andamento", "Concluído"] },
+        "status": { "type": "string", "enum": ["Em Andamento", "Concluído", "Pausado"] },
         "passos": { "type": "array" },
+        "tipos_tarefas": { "type": "array" },
         "userId": { "type": "string" },
         "criado_em": { "type": "string" }
       },

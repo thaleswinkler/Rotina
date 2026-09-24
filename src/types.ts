@@ -21,6 +21,7 @@ export interface PassoProjeto {
   concluido: boolean;
   ordem: number;
   data_limite?: string;
+  tipo?: string; // Tipo/Grupo de tarefa (ex: "Planejamento", "Design", "Execução", "Testes", etc.)
 }
 
 export interface Projeto {
@@ -35,6 +36,7 @@ export interface Projeto {
   progresso_pct: number;
   total_passos: number;
   passos_concluidos: number;
+  tipos_tarefas?: string[];
   userId?: string;
 }
 

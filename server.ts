@@ -38,6 +38,7 @@ interface PassoProjeto {
   concluido: boolean;
   ordem: number;
   data_limite?: string;
+  tipo?: string;
 }
 
 interface Projeto {
@@ -49,6 +50,7 @@ interface Projeto {
   status: "Em Andamento" | "Concluído" | "Pausado";
   criado_em: string;
   passos: PassoProjeto[];
+  tipos_tarefas?: string[];
 }
 
 interface DBStore {
@@ -346,7 +348,7 @@ app.get("/api/projects", (req, res) => {
 
 // Create project
 app.post("/api/projects", (req, res) => {
-  const { titulo, descricao, categoria, data_limite, passos } = req.body;
+  const { titulo, descricao, categoria, data_limite, passos, tipos_tarefas } = req.body;
   if (!titulo || !titulo.trim()) {
     return res.status(400).json({ error: "O título do projeto é obrigatório." });
   }
@@ -356,9 +358,10 @@ app.post("/api/projects", (req, res) => {
 
   const passosCriados: PassoProjeto[] = [];
   if (Array.isArray(passos)) {
-    passos.forEach((pText: string | { titulo: string; data_limite?: string; concluido?: boolean }, idx: number) => {
+    passos.forEach((pText: string | { titulo: string; data_limite?: string; concluido?: boolean; tipo?: string }, idx: number) => {
       const texto = typeof pText === "string" ? pText.trim() : (pText?.titulo || "").trim();
       const prazoEtapa = typeof pText === "object" && pText?.data_limite ? pText.data_limite : "";
+      const tipoEtapa = typeof pText === "object" && pText?.tipo ? pText.tipo : "Geral";
       if (texto) {
         passosCriados.push({
           id: db.nextPassoId++,
@@ -367,6 +370,7 @@ app.post("/api/projects", (req, res) => {
           concluido: typeof pText === "object" ? Boolean(pText.concluido) : false,
           ordem: idx + 1,
           data_limite: prazoEtapa,
+          tipo: tipoEtapa,
         });
       }
     });
@@ -381,6 +385,7 @@ app.post("/api/projects", (req, res) => {
     status: "Em Andamento",
     criado_em: new Date().toISOString(),
     passos: passosCriados,
+    tipos_tarefas: Array.isArray(tipos_tarefas) ? tipos_tarefas : ["Planejamento", "Execução", "Revisão", "Geral"],
   };
 
   if (!db.projetos) db.projetos = [];
@@ -401,13 +406,15 @@ app.put("/api/projects/:id", (req, res) => {
   }
 
   const existing = db.projetos[index];
-  const { titulo, descricao, categoria, data_limite, status } = req.body;
+  const { titulo, descricao, categoria, data_limite, status, passos, tipos_tarefas } = req.body;
 
   if (titulo !== undefined) existing.titulo = titulo.trim();
   if (descricao !== undefined) existing.descricao = descricao.trim();
   if (categoria !== undefined) existing.categoria = categoria.trim();
   if (data_limite !== undefined) existing.data_limite = data_limite;
   if (status !== undefined) existing.status = status;
+  if (passos !== undefined && Array.isArray(passos)) existing.passos = passos;
+  if (tipos_tarefas !== undefined && Array.isArray(tipos_tarefas)) existing.tipos_tarefas = tipos_tarefas;
 
   db.projetos[index] = existing;
   saveDB(db);
@@ -433,7 +440,7 @@ app.delete("/api/projects/:id", (req, res) => {
 // Add step to project
 app.post("/api/projects/:id/passos", (req, res) => {
   const projectId = parseInt(req.params.id, 10);
-  const { titulo, data_limite } = req.body;
+  const { titulo, data_limite, tipo } = req.body;
 
   if (!titulo || !titulo.trim()) {
     return res.status(400).json({ error: "O título do passo é obrigatório." });
@@ -455,6 +462,7 @@ app.post("/api/projects/:id/passos", (req, res) => {
     concluido: false,
     ordem: project.passos.length + 1,
     data_limite: data_limite || "",
+    tipo: tipo || "Geral",
   };
 
   project.passos.push(novoPasso);
@@ -467,7 +475,7 @@ app.post("/api/projects/:id/passos", (req, res) => {
 app.put("/api/projects/:id/passos/:passoId", (req, res) => {
   const projectId = parseInt(req.params.id, 10);
   const passoId = parseInt(req.params.passoId, 10);
-  const { concluido, titulo, data_limite } = req.body;
+  const { concluido, titulo, data_limite, tipo } = req.body;
 
   const db = loadDB();
   const project = (db.projetos || []).find((p) => p.id === projectId);
@@ -484,6 +492,7 @@ app.put("/api/projects/:id/passos/:passoId", (req, res) => {
   if (concluido !== undefined) passo.concluido = Boolean(concluido);
   if (titulo !== undefined) passo.titulo = titulo.trim();
   if (data_limite !== undefined) passo.data_limite = data_limite;
+  if (tipo !== undefined) passo.tipo = tipo;
 
   // Check if all steps are completed
   const allDone = project.passos.length > 0 && project.passos.every((p) => p.concluido);

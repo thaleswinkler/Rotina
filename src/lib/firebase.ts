@@ -227,6 +227,7 @@ export async function addProjetoFirestore(
     data_limite?: string;
     status?: string;
     passos?: PassoProjeto[];
+    tipos_tarefas?: string[];
     criado_em?: string;
   },
   userId?: string
@@ -239,6 +240,7 @@ export async function addProjetoFirestore(
     status: projeto.status || "Em Andamento",
     data_limite: projeto.data_limite || "",
     passos: projeto.passos || [],
+    tipos_tarefas: projeto.tipos_tarefas || ["Planejamento", "Execução", "Revisão", "Geral"],
     id: newDoc.id,
     userId: userId || auth.currentUser?.uid || "anonymous",
     criado_em: projeto.criado_em || new Date().toISOString(),
@@ -264,7 +266,8 @@ export async function addPassoFirestore(
   projetoId: string | number,
   passoTitulo: string,
   currentPassos: PassoProjeto[],
-  dataLimite?: string
+  dataLimite?: string,
+  tipo?: string
 ): Promise<void> {
   const newPasso: PassoProjeto = {
     id: `step_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -273,6 +276,7 @@ export async function addPassoFirestore(
     concluido: false,
     ordem: currentPassos.length + 1,
     data_limite: dataLimite || "",
+    tipo: tipo || "Geral",
   };
   const updatedPassos = [...currentPassos, newPasso];
   await updateProjetoFirestore(projetoId, { passos: updatedPassos });
