@@ -53,12 +53,23 @@ interface Projeto {
   tipos_tarefas?: string[];
 }
 
+interface ItemMercado {
+  id: number | string;
+  nome: string;
+  categoria: string;
+  quantidade?: string;
+  comprado: boolean;
+  criado_em: string;
+}
+
 interface DBStore {
   nextId: number;
   nextPassoId: number;
+  nextMercadoId?: number;
   categorias: string[];
   tarefas: Tarefa[];
   projetos: Projeto[];
+  mercado: ItemMercado[];
 }
 
 function getTodayString(): string {
@@ -110,7 +121,9 @@ function loadDB(): DBStore {
       const data = fs.readFileSync(DB_FILE, "utf-8");
       const parsed = JSON.parse(data);
       if (!parsed.projetos) parsed.projetos = [];
+      if (!parsed.mercado) parsed.mercado = [];
       if (!parsed.nextPassoId) parsed.nextPassoId = 100;
+      if (!parsed.nextMercadoId) parsed.nextMercadoId = 10;
       return parsed;
     }
   } catch (err) {
@@ -120,7 +133,42 @@ function loadDB(): DBStore {
   const initialDB: DBStore = {
     nextId: 4,
     nextPassoId: 10,
+    nextMercadoId: 5,
     categorias: ["Trabalho", "Pessoal", "Estudos", "Saúde", "Finanças", "Projetos"],
+    mercado: [
+      {
+        id: 1,
+        nome: "Café moído",
+        categoria: "Alimentos",
+        quantidade: "1 pacote",
+        comprado: false,
+        criado_em: new Date().toISOString(),
+      },
+      {
+        id: 2,
+        nome: "Leite desnatado",
+        categoria: "Laticínios & Frios",
+        quantidade: "2 litros",
+        comprado: false,
+        criado_em: new Date().toISOString(),
+      },
+      {
+        id: 3,
+        nome: "Detergente e esponja",
+        categoria: "Limpeza & Higiene",
+        quantidade: "1 un",
+        comprado: false,
+        criado_em: new Date().toISOString(),
+      },
+      {
+        id: 4,
+        nome: "Ovos caipiras",
+        categoria: "Hortifrúti & Feira",
+        quantidade: "1 dúzia",
+        comprado: true,
+        criado_em: new Date().toISOString(),
+      },
+    ],
     tarefas: [
       {
         id: 1,
@@ -333,6 +381,103 @@ app.post("/api/categories", (req, res) => {
   }
 
   res.json(db.categorias);
+});
+
+// ---------------------------------------------------------------------------
+// Mercado Routes (Lista de Compras / Mercado)
+// ---------------------------------------------------------------------------
+
+// List all shopping items
+app.get("/api/mercado", (req, res) => {
+  const db = loadDB();
+  const list = db.mercado || [];
+  // Sort: pending first, then by date descending
+  list.sort((a, b) => {
+    if (a.comprado !== b.comprado) return a.comprado ? 1 : -1;
+    return (b.criado_em || "").localeCompare(a.criado_em || "");
+  });
+  res.json(list);
+});
+
+// Add shopping item
+app.post("/api/mercado", (req, res) => {
+  const { nome, categoria, quantidade } = req.body;
+  if (!nome || !nome.trim()) {
+    return res.status(400).json({ error: "O nome do item é obrigatório." });
+  }
+
+  const db = loadDB();
+  if (!db.mercado) db.mercado = [];
+  if (!db.nextMercadoId) db.nextMercadoId = 100;
+
+  const novoItem: ItemMercado = {
+    id: db.nextMercadoId++,
+    nome: nome.trim(),
+    categoria: categoria || "Alimentos",
+    quantidade: quantidade || "1",
+    comprado: false,
+    criado_em: new Date().toISOString(),
+  };
+
+  db.mercado.unshift(novoItem);
+  saveDB(db);
+
+  res.status(201).json(novoItem);
+});
+
+// Update shopping item (toggle bought, change qty or name)
+app.put("/api/mercado/:id", (req, res) => {
+  const itemId = req.params.id;
+  const db = loadDB();
+  if (!db.mercado) db.mercado = [];
+
+  const index = db.mercado.findIndex((i) => String(i.id) === String(itemId));
+  if (index === -1) {
+    return res.status(404).json({ error: "Item de mercado não encontrado." });
+  }
+
+  const existing = db.mercado[index];
+  const { nome, categoria, quantidade, comprado } = req.body;
+
+  if (nome !== undefined) existing.nome = nome.trim();
+  if (categoria !== undefined) existing.categoria = categoria;
+  if (quantidade !== undefined) existing.quantidade = quantidade;
+  if (comprado !== undefined) existing.comprado = Boolean(comprado);
+
+  db.mercado[index] = existing;
+  saveDB(db);
+
+  res.json(existing);
+});
+
+// Delete shopping item
+app.delete("/api/mercado/:id", (req, res) => {
+  const itemId = req.params.id;
+  const db = loadDB();
+  if (!db.mercado) db.mercado = [];
+
+  const initialLen = db.mercado.length;
+  db.mercado = db.mercado.filter((i) => String(i.id) !== String(itemId));
+
+  if (db.mercado.length === initialLen) {
+    return res.status(404).json({ error: "Item não encontrado." });
+  }
+
+  saveDB(db);
+  res.json({ success: true, id: itemId });
+});
+
+// Clear all completed items
+app.post("/api/mercado/clear-completed", (req, res) => {
+  const db = loadDB();
+  if (!db.mercado) db.mercado = [];
+
+  const countBefore = db.mercado.length;
+  db.mercado = db.mercado.filter((i) => !i.comprado);
+  const removed = countBefore - db.mercado.length;
+
+  saveDB(db);
+  res.json({ success: true, removedCount: removed });
 });
 
 // ---------------------------------------------------------------------------
@@ -748,11 +893,13 @@ app.post("/api/database/restore", (req, res) => {
     const restoredDB: DBStore = {
       nextId: Math.max(uploadedData.nextId || 1, currentDB.nextId || 1),
       nextPassoId: Math.max(uploadedData.nextPassoId || 1, currentDB.nextPassoId || 1),
+      nextMercadoId: Math.max(uploadedData.nextMercadoId || 1, currentDB.nextMercadoId || 1),
       categorias: Array.isArray(uploadedData.categorias) && uploadedData.categorias.length > 0
         ? uploadedData.categorias
         : currentDB.categorias,
       tarefas: Array.isArray(uploadedData.tarefas) ? uploadedData.tarefas : currentDB.tarefas,
       projetos: Array.isArray(uploadedData.projetos) ? uploadedData.projetos : currentDB.projetos,
+      mercado: Array.isArray(uploadedData.mercado) ? uploadedData.mercado : currentDB.mercado || [],
     };
 
     saveDB(restoredDB);

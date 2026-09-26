@@ -56,6 +56,17 @@ export interface MetricSummary {
   totalProjetos: number;
   projetosEmAndamento: number;
   mediaProgressoProjetos: number;
+  totalMercadoPendentes?: number;
+}
+
+export interface ItemMercado {
+  id: string | number;
+  nome: string;
+  categoria: string;
+  quantidade?: string;
+  comprado: boolean;
+  criado_em: string;
+  userId?: string;
 }
 
 

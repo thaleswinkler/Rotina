@@ -47,6 +47,21 @@
         "userId": { "type": "string" }
       },
       "required": ["nome"]
+    },
+    "mercado": {
+      "title": "Item de Mercado",
+      "description": "Itens da lista de compras e mercado",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome": { "type": "string" },
+        "categoria": { "type": "string" },
+        "quantidade": { "type": "string" },
+        "comprado": { "type": "boolean" },
+        "userId": { "type": "string" },
+        "criado_em": { "type": "string" }
+      },
+      "required": ["nome", "comprado"]
     }
   },
   "firestore": {
@@ -61,6 +76,10 @@
     "/categorias/{categoriaId}": {
       "schema": "categorias",
       "description": "Coleção de categorias personalizadas"
+    },
+    "/mercado/{itemId}": {
+      "schema": "mercado",
+      "description": "Coleção de itens da lista de compras do mercado"
     }
   }
 }

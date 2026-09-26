@@ -617,5 +617,17 @@
     "Projetos",
     "Saúde",
     "Trabalho"
-  ]
+  ],
+  "mercado": [
+    {
+      "id": 10,
+      "nome": "Café",
+      "categoria": "Alimentos",
+      "quantidade": "1 pacote",
+      "comprado": false,
+      "criado_em": "2026-09-26T15:41:59.782Z"
+    }
+  ],
+  "nextPassoId": 100,
+  "nextMercadoId": 11
 }

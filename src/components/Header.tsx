@@ -53,13 +53,18 @@ export const Header: React.FC<HeaderProps> = ({
               ⚡
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
                   Rotina PRO
                 </h1>
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
                   Tarefas & Projetos
                 </span>
+                {metrics.totalMercadoPendentes !== undefined && metrics.totalMercadoPendentes > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                    🛒 {metrics.totalMercadoPendentes} a comprar
+                  </span>
+                )}
               </div>
               <p className="text-xs sm:text-sm text-slate-500 capitalize">
                 {dataFormatada}

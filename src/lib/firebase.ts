@@ -23,7 +23,7 @@ import {
   User,
 } from "firebase/auth";
 import firebaseConfig from "../../firebase-applet-config.json";
-import { Tarefa, Projeto, PassoProjeto, UserProfile, Prioridade, StatusTarefa } from "../types";
+import { Tarefa, Projeto, PassoProjeto, UserProfile, Prioridade, StatusTarefa, ItemMercado } from "../types";
 
 // Initialize Firebase App
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -176,9 +176,87 @@ export function subscribeToCategoriasFirestore(
   });
 }
 
+export function subscribeToMercadoFirestore(
+  onUpdate: (itens: ItemMercado[]) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  const colRef = collection(db, "mercado");
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const items: ItemMercado[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as ItemMercado;
+        items.push({
+          ...data,
+          id: docSnap.id,
+        });
+      });
+      // Sort: Pendentes first, then by criado_em descending
+      items.sort((a, b) => {
+        if (a.comprado !== b.comprado) {
+          return a.comprado ? 1 : -1;
+        }
+        return (b.criado_em || "").localeCompare(a.criado_em || "");
+      });
+      onUpdate(items);
+    },
+    (error) => {
+      console.error("Erro no onSnapshot do mercado:", error);
+      if (onError) onError(error);
+    }
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Firestore Mutation Actions (Auto-sync to Cloud)
 // ---------------------------------------------------------------------------
+
+export async function addItemMercadoFirestore(
+  item: {
+    nome: string;
+    categoria?: string;
+    quantidade?: string;
+  },
+  userId?: string
+): Promise<string> {
+  const colRef = collection(db, "mercado");
+  const newDoc = doc(colRef);
+  const data: ItemMercado = {
+    id: newDoc.id,
+    nome: item.nome.trim(),
+    categoria: item.categoria || "Alimentos",
+    quantidade: item.quantidade || "1",
+    comprado: false,
+    criado_em: new Date().toISOString(),
+    userId: userId || auth.currentUser?.uid || "anonymous",
+  };
+  await setDoc(newDoc, data);
+  return newDoc.id;
+}
+
+export async function updateItemMercadoFirestore(
+  id: string | number,
+  updates: Partial<ItemMercado>
+): Promise<void> {
+  const docRef = doc(db, "mercado", String(id));
+  await updateDoc(docRef, updates);
+}
+
+export async function deleteItemMercadoFirestore(id: string | number): Promise<void> {
+  const docRef = doc(db, "mercado", String(id));
+  await deleteDoc(docRef);
+}
+
+export async function limparCompradosMercadoFirestore(itens: ItemMercado[]): Promise<void> {
+  const batch = writeBatch(db);
+  const comprados = itens.filter((i) => i.comprado);
+  comprados.forEach((item) => {
+    const docRef = doc(db, "mercado", String(item.id));
+    batch.delete(docRef);
+  });
+  await batch.commit();
+}
 
 export async function addTarefaFirestore(
   tarefa: {

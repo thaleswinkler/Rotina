@@ -8,8 +8,9 @@ import {
   CalendarClock,
   CheckCircle2,
   Plus,
+  ShoppingCart,
 } from "lucide-react";
-import { Tarefa, Projeto, PassoProjeto, Prioridade, StatusTarefa, MetricSummary, UserProfile } from "./types";
+import { Tarefa, Projeto, PassoProjeto, Prioridade, StatusTarefa, MetricSummary, UserProfile, ItemMercado } from "./types";
 import { Header } from "./components/Header";
 import { SidebarFilters } from "./components/SidebarFilters";
 import { TaskCard } from "./components/TaskCard";
@@ -20,11 +21,13 @@ import { EditTaskModal } from "./components/EditTaskModal";
 import { ProjectsTab } from "./components/ProjectsTab";
 import { UpcomingTab } from "./components/UpcomingTab";
 import { SyncAndBackupModal } from "./components/SyncAndBackupModal";
+import { MercadoTab } from "./components/MercadoTab";
 import {
   subscribeToAuth,
   subscribeToTarefasFirestore,
   subscribeToProjetosFirestore,
   subscribeToCategoriasFirestore,
+  subscribeToMercadoFirestore,
   loginWithGoogle,
   logoutUser,
   loginAnonymously,
@@ -35,11 +38,16 @@ import {
   seedFirestoreIfEmpty,
   syncLocalServerToFirestore,
   togglePassoFirestore,
+  addItemMercadoFirestore,
+  updateItemMercadoFirestore,
+  deleteItemMercadoFirestore,
+  limparCompradosMercadoFirestore,
 } from "./lib/firebase";
 
 export default function App() {
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
+  const [mercadoItens, setMercadoItens] = useState<ItemMercado[]>([]);
   const [categorias, setCategorias] = useState<string[]>([
     "Trabalho",
     "Pessoal",
@@ -53,10 +61,10 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Tabs: 'tarefas' | 'projetos' | 'em_breve' | 'manual' | 'voz' | 'python'
+  // Tabs: 'mercado' | 'tarefas' | 'projetos' | 'em_breve' | 'manual' | 'voz' | 'python'
   const [activeTab, setActiveTab] = useState<
-    "tarefas" | "projetos" | "em_breve" | "manual" | "voz" | "python"
-  >("tarefas");
+    "mercado" | "tarefas" | "projetos" | "em_breve" | "manual" | "voz" | "python"
+  >("mercado");
 
   // Filters for tasks
   const [statusFiltro, setStatusFiltro] = useState<"Todos" | StatusTarefa>("Todos");
@@ -112,8 +120,9 @@ export default function App() {
       fetch("/api/tasks").then((r) => r.json()).catch(() => []),
       fetch("/api/projects").then((r) => r.json()).catch(() => []),
       fetch("/api/categories").then((r) => r.json()).catch(() => []),
+      fetch("/api/mercado").then((r) => r.json()).catch(() => []),
     ])
-      .then(([localTasks, localProjs, localCats]) => {
+      .then(([localTasks, localProjs, localCats, localMercado]) => {
         if (Array.isArray(localTasks) && localTasks.length > 0) {
           setTarefas((curr) => (curr.length === 0 ? localTasks : curr));
         }
@@ -122,6 +131,9 @@ export default function App() {
         }
         if (Array.isArray(localCats) && localCats.length > 0) {
           setCategorias((curr) => (curr.length === 0 ? localCats : curr));
+        }
+        if (Array.isArray(localMercado) && localMercado.length > 0) {
+          setMercadoItens((curr) => (curr.length === 0 ? localMercado : curr));
         }
         setLoading(false);
       })
@@ -178,12 +190,19 @@ export default function App() {
       }
     });
 
+    const unsubMercado = subscribeToMercadoFirestore((firestoreMercado) => {
+      if (firestoreMercado.length > 0) {
+        setMercadoItens(firestoreMercado);
+      }
+    });
+
     return () => {
       clearTimeout(safetyTimer);
       unsubAuth();
       unsubTarefas();
       unsubProjetos();
       unsubCats();
+      unsubMercado();
     };
   }, []);
 
@@ -232,6 +251,8 @@ export default function App() {
           )
         : 0;
 
+    const totalMercadoPendentes = mercadoItens.filter((i) => !i.comprado).length;
+
     return {
       total,
       concluidas,
@@ -240,8 +261,110 @@ export default function App() {
       totalProjetos,
       projetosEmAndamento,
       mediaProgressoProjetos,
+      totalMercadoPendentes,
     };
-  }, [tarefas, projetos]);
+  }, [tarefas, projetos, mercadoItens]);
+
+  // ---------------------------------------------------------------------------
+  // Mercado Handlers
+  // ---------------------------------------------------------------------------
+  const handleAddItemMercado = async (nome: string, categoria?: string, quantidade?: string) => {
+    const tempId = `mercado_${Date.now()}`;
+    const novo: ItemMercado = {
+      id: tempId,
+      nome,
+      categoria: categoria || "Alimentos",
+      quantidade: quantidade || "1",
+      comprado: false,
+      criado_em: new Date().toISOString(),
+      userId: currentUser?.uid || "anonymous",
+    };
+
+    setMercadoItens((prev) => [novo, ...prev]);
+
+    fetch("/api/mercado", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome, categoria, quantidade }),
+    }).catch(() => {});
+
+    try {
+      const docId = await addItemMercadoFirestore({ nome, categoria, quantidade }, currentUser?.uid);
+      setMercadoItens((prev) => prev.map((i) => (i.id === tempId ? { ...i, id: docId } : i)));
+    } catch (err) {
+      console.warn("Firestore addItemMercado skipped:", err);
+    }
+  };
+
+  const handleToggleItemMercado = async (id: string | number, currentComprado: boolean) => {
+    const novoEstado = !currentComprado;
+    setMercadoItens((prev) =>
+      prev.map((i) => (String(i.id) === String(id) ? { ...i, comprado: novoEstado } : i))
+    );
+
+    fetch(`/api/mercado/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ comprado: novoEstado }),
+    }).catch(() => {});
+
+    try {
+      await updateItemMercadoFirestore(id, { comprado: novoEstado });
+    } catch (err) {
+      console.warn("Firestore updateItemMercado skipped:", err);
+    }
+
+    if (novoEstado) {
+      showToast("🛒 Item marcado como comprado!", "success");
+    }
+  };
+
+  const handleDeleteItemMercado = async (id: string | number) => {
+    setMercadoItens((prev) => prev.filter((i) => String(i.id) !== String(id)));
+
+    fetch(`/api/mercado/${id}`, { method: "DELETE" }).catch(() => {});
+
+    try {
+      await deleteItemMercadoFirestore(id);
+    } catch (err) {
+      console.warn("Firestore deleteItemMercado skipped:", err);
+    }
+    showToast("Item removido da lista.", "info");
+  };
+
+  const handleUpdateItemMercado = async (id: string | number, updates: Partial<ItemMercado>) => {
+    setMercadoItens((prev) =>
+      prev.map((i) => (String(i.id) === String(id) ? { ...i, ...updates } : i))
+    );
+
+    fetch(`/api/mercado/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    }).catch(() => {});
+
+    try {
+      await updateItemMercadoFirestore(id, updates);
+    } catch (err) {
+      console.warn("Firestore updateItemMercado skipped:", err);
+    }
+  };
+
+  const handleLimparCompradosMercado = async () => {
+    const comprados = mercadoItens.filter((i) => i.comprado);
+    if (comprados.length === 0) return;
+
+    setMercadoItens((prev) => prev.filter((i) => !i.comprado));
+
+    fetch("/api/mercado/clear-completed", { method: "POST" }).catch(() => {});
+
+    try {
+      await limparCompradosMercadoFirestore(mercadoItens);
+      showToast(`✨ ${comprados.length} itens no carrinho limpos com sucesso!`, "info");
+    } catch (err) {
+      console.warn("Firestore clearMercado skipped:", err);
+    }
+  };
 
   // Handler: Toggle Task Status
   const handleToggleStatus = async (id: string | number, currentStatus: "Pendente" | "Concluída") => {
@@ -489,6 +612,27 @@ export default function App() {
         <div className="flex items-center justify-between border-b border-slate-200 pb-0 mb-6 overflow-x-auto gap-2">
           <div className="flex items-center gap-1 sm:gap-2">
             <button
+              onClick={() => setActiveTab("mercado")}
+              className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
+                activeTab === "mercado"
+                  ? "border-emerald-600 text-emerald-700 bg-white shadow-2xs"
+                  : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+              }`}
+            >
+              <ShoppingCart className="w-4 h-4 text-emerald-600" />
+              <span>🛒 Mercado</span>
+              {(metrics.totalMercadoPendentes || 0) > 0 ? (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-rose-500 text-white font-black animate-pulse">
+                  {metrics.totalMercadoPendentes}
+                </span>
+              ) : (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-slate-100 text-slate-600 font-bold">
+                  {mercadoItens.length}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={() => setActiveTab("tarefas")}
               className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
                 activeTab === "tarefas"
@@ -580,6 +724,19 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {/* Tab 0: Mercado & Lista de Compras */}
+        {activeTab === "mercado" && (
+          <MercadoTab
+            itens={mercadoItens}
+            onAddItem={handleAddItemMercado}
+            onToggleItem={handleToggleItemMercado}
+            onDeleteItem={handleDeleteItemMercado}
+            onUpdateItem={handleUpdateItemMercado}
+            onLimparComprados={handleLimparCompradosMercado}
+            onShowToast={showToast}
+          />
+        )}
 
         {/* Tab 1: Tasks List & Filters */}
         {activeTab === "tarefas" && (
