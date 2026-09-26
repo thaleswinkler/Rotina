@@ -61,9 +61,9 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Tabs: 'mercado' | 'tarefas' | 'projetos' | 'em_breve' | 'manual' | 'voz' | 'python'
+  // Tabs: 'mercado' | 'em_breve' | 'projetos' | 'manual' | 'voz' | 'python'
   const [activeTab, setActiveTab] = useState<
-    "mercado" | "tarefas" | "projetos" | "em_breve" | "manual" | "voz" | "python"
+    "mercado" | "em_breve" | "projetos" | "manual" | "voz" | "python"
   >("mercado");
 
   // Filters for tasks
@@ -558,7 +558,7 @@ export default function App() {
       console.warn("Firestore voice sync skipped:", err);
     }
     showToast("🎙️ Tarefa de voz cadastrada!", "success");
-    setActiveTab("tarefas");
+    setActiveTab("em_breve");
   };
 
   return (
@@ -633,25 +633,31 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => setActiveTab("tarefas")}
+              onClick={() => setActiveTab("em_breve")}
               className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
-                activeTab === "tarefas"
-                  ? "border-indigo-600 text-indigo-600 bg-white"
+                activeTab === "em_breve"
+                  ? "border-indigo-600 text-indigo-700 bg-white shadow-2xs font-bold"
                   : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
               }`}
             >
-              <ListTodo className="w-4 h-4" />
-              <span>📑 Tarefas</span>
-              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-slate-100 text-slate-600 font-bold">
-                {tarefas.length}
-              </span>
+              <CalendarClock className="w-4 h-4 text-indigo-600" />
+              <span>📅 Em Breve</span>
+              {metrics.pendentes > 0 ? (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-indigo-100 text-indigo-700 font-bold">
+                  {metrics.pendentes}
+                </span>
+              ) : (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-slate-100 text-slate-600 font-bold">
+                  0
+                </span>
+              )}
             </button>
 
             <button
               onClick={() => setActiveTab("projetos")}
               className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
                 activeTab === "projetos"
-                  ? "border-indigo-600 text-indigo-600 bg-white"
+                  ? "border-indigo-600 text-indigo-600 bg-white font-bold"
                   : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
               }`}
             >
@@ -659,21 +665,6 @@ export default function App() {
               <span>📁 Projetos & Etapas</span>
               <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-purple-100 text-purple-700 font-bold">
                 {projetos.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("em_breve")}
-              className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
-                activeTab === "em_breve"
-                  ? "border-indigo-600 text-indigo-600 bg-white"
-                  : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
-              }`}
-            >
-              <CalendarClock className="w-4 h-4 text-amber-600" />
-              <span>⏳ Em Breve</span>
-              <span className="text-[10px] uppercase tracking-wider bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">
-                Por Data
               </span>
             </button>
 
@@ -738,91 +729,27 @@ export default function App() {
           />
         )}
 
-        {/* Tab 1: Tasks List & Filters */}
-        {activeTab === "tarefas" && (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-            <div className="lg:col-span-1">
-              <SidebarFilters
-                statusFiltro={statusFiltro}
-                setStatusFiltro={setStatusFiltro}
-                categoriaFiltro={categoriaFiltro}
-                setCategoriaFiltro={setCategoriaFiltro}
-                prioridadeFiltro={prioridadeFiltro}
-                setPrioridadeFiltro={setPrioridadeFiltro}
-                dataFiltro={dataFiltro}
-                setDataFiltro={setDataFiltro}
-                busca={busca}
-                setBusca={setBusca}
-                categorias={categorias}
-                onAddCategoria={handleAddCategory}
-              />
-            </div>
-
-            <div className="lg:col-span-3 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-slate-900">
-                    Tarefas Cadastradas
-                  </h2>
-                  <span className="text-xs font-semibold text-slate-500 bg-slate-200/80 px-2 py-0.5 rounded-full">
-                    {tarefasFiltradas.length} visíveis
-                  </span>
-                </div>
-              </div>
-
-              {loading ? (
-                <div className="p-12 text-center bg-white rounded-2xl border border-slate-200">
-                  <div className="inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3"></div>
-                  <p className="text-xs font-medium text-slate-500">
-                    Carregando dados...
-                  </p>
-                </div>
-              ) : tarefasFiltradas.length === 0 ? (
-                <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-xs">
-                  <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
-                    <ListTodo className="w-7 h-7" />
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 mb-1">
-                    Nenhuma tarefa encontrada
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto mb-5">
-                    Não há tarefas correspondentes aos filtros selecionados. Crie uma nova tarefa agora ou ajuste os filtros.
-                  </p>
-                  <div className="flex items-center justify-center gap-3">
-                    <button
-                      onClick={() => setActiveTab("voz")}
-                      className="px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Mic className="w-4 h-4" />
-                      <span>Gravar por Voz</span>
-                    </button>
-                    <button
-                      onClick={() => setActiveTab("manual")}
-                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Inserir Manualmente</span>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {tarefasFiltradas.map((tarefa) => (
-                    <TaskCard
-                      key={tarefa.id}
-                      tarefa={tarefa}
-                      onToggleStatus={handleToggleStatus}
-                      onDelete={handleDeleteTask}
-                      onEdit={(t) => {
-                        setEditingTask(t);
-                        setIsEditModalOpen(true);
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Tab 1: Em Breve (Full filters, strict date sorting, and direct task editing) */}
+        {activeTab === "em_breve" && (
+          <UpcomingTab
+            tarefas={tarefas}
+            projetos={projetos}
+            categorias={categorias}
+            onToggleTaskStatus={handleToggleStatus}
+            onToggleProjectStep={handleToggleProjectStep}
+            onEditTask={(tarefa) => {
+              setEditingTask(tarefa);
+              setIsEditModalOpen(true);
+            }}
+            onDeleteTask={handleDeleteTask}
+            onCreateTask={handleCreateTask}
+            onNavigateToTab={(tab) => {
+              if (tab === "projetos") setActiveTab("projetos");
+              else if (tab === "manual") setActiveTab("manual");
+              else if (tab === "voz") setActiveTab("voz");
+            }}
+            onShowToast={showToast}
+          />
         )}
 
         {/* Tab 2: Projects & Steps */}
@@ -837,23 +764,7 @@ export default function App() {
           />
         )}
 
-        {/* Tab 3: Upcoming / Em Breve (Grouped by Category) */}
-        {activeTab === "em_breve" && (
-          <UpcomingTab
-            tarefas={tarefas}
-            projetos={projetos}
-            categorias={categorias}
-            onToggleTaskStatus={handleToggleStatus}
-            onToggleProjectStep={handleToggleProjectStep}
-            onNavigateToTab={(tab) => {
-              if (tab === "tarefas") setActiveTab("tarefas");
-              else if (tab === "projetos") setActiveTab("projetos");
-              else if (tab === "manual") setActiveTab("manual");
-            }}
-          />
-        )}
-
-        {/* Tab 4: Manual Task Insertion */}
+        {/* Tab 3: Manual Task Insertion */}
         {activeTab === "manual" && (
           <ManualInsertForm
             categorias={categorias}
@@ -862,13 +773,13 @@ export default function App() {
           />
         )}
 
-        {/* Tab 5: Voice Insertion with Gemini */}
+        {/* Tab 4: Voice Insertion with Gemini */}
         {activeTab === "voz" && (
           <VoiceInsertTab
             hasGeminiKey={hasGeminiKey}
             categorias={categorias}
             onTaskCreated={handleVoiceTaskCreated}
-            onNavigateToTasks={() => setActiveTab("tarefas")}
+            onNavigateToTasks={() => setActiveTab("em_breve")}
           />
         )}
 

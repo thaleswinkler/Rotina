@@ -11,9 +11,19 @@ import {
   Search,
   Layers,
   Flame,
-  CheckCheck,
+  Plus,
+  Trash2,
+  Edit3,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Filter,
+  RotateCcw,
+  Tag,
+  AlertCircle,
 } from "lucide-react";
-import { Tarefa, Projeto, PassoProjeto } from "../types";
+import { Tarefa, Projeto, PassoProjeto, Prioridade, StatusTarefa } from "../types";
 
 export interface EtapaItemUpcoming {
   id: string;
@@ -32,12 +42,23 @@ interface UpcomingTabProps {
   categorias: string[];
   onToggleTaskStatus: (id: string | number, currentStatus: "Pendente" | "Concluída") => Promise<void>;
   onToggleProjectStep: (projectId: string | number, step: PassoProjeto) => Promise<void>;
-  onNavigateToTab: (tab: "tarefas" | "projetos" | "manual") => void;
+  onEditTask: (tarefa: Tarefa) => void;
+  onDeleteTask: (id: string | number) => Promise<void>;
+  onCreateTask: (novaTarefa: {
+    titulo: string;
+    descricao: string;
+    categoria: string;
+    prioridade: Prioridade;
+    data_vencimento: string;
+  }) => Promise<void>;
+  onNavigateToTab?: (tab: string) => void;
+  onShowToast: (text: string, type?: "success" | "info") => void;
 }
 
-type TipoFiltro = "todas" | "tarefas" | "etapas" | "projetos";
+type TipoVisualizacao = "secoes" | "lista_continua";
+type FiltroPeriodo = "todos" | "vencidas" | "hoje" | "amanha" | "7dias" | "sem_data";
 
-// Date calculations
+// Date helpers
 const parseDate = (dateStr?: string): Date | null => {
   if (!dateStr || !dateStr.trim()) return null;
   const parts = dateStr.trim().split("-");
@@ -71,36 +92,47 @@ const formatBrDate = (dateStr?: string) => {
 
 const formatRelativeDate = (dateStr?: string) => {
   const diff = getDaysDiff(dateStr);
-  if (diff === null) return { text: "Sem data", badgeClass: "bg-slate-100 text-slate-600 border-slate-200" };
+  if (diff === null) {
+    return {
+      text: "Sem data",
+      badgeClass: "bg-slate-100 text-slate-600 border-slate-200",
+      days: 9999,
+    };
+  }
 
   if (diff < 0) {
     const days = Math.abs(diff);
     return {
       text: days === 1 ? "Atrasada há 1 dia" : `Atrasada há ${days} dias`,
       badgeClass: "bg-rose-100 text-rose-800 border-rose-200 font-bold",
+      days: diff,
     };
   }
   if (diff === 0) {
     return {
       text: "Vence Hoje",
       badgeClass: "bg-amber-100 text-amber-800 border-amber-200 font-bold animate-pulse",
+      days: 0,
     };
   }
   if (diff === 1) {
     return {
       text: "Amanhã",
       badgeClass: "bg-blue-100 text-blue-800 border-blue-200 font-semibold",
+      days: 1,
     };
   }
   if (diff <= 7) {
     return {
-      text: `Em ${diff} dias`,
+      text: `Em ${diff} dias (${formatBrDate(dateStr)})`,
       badgeClass: "bg-indigo-50 text-indigo-700 border-indigo-200 font-medium",
+      days: diff,
     };
   }
   return {
     text: `Em ${diff} dias (${formatBrDate(dateStr)})`,
     badgeClass: "bg-slate-100 text-slate-700 border-slate-200 font-normal",
+    days: diff,
   };
 };
 
@@ -110,29 +142,165 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
   categorias,
   onToggleTaskStatus,
   onToggleProjectStep,
+  onEditTask,
+  onDeleteTask,
+  onCreateTask,
   onNavigateToTab,
+  onShowToast,
 }) => {
+  // Filter States - Defaulting status to "Pendente" as requested so "Em Breve" starts focused on what's due
   const [busca, setBusca] = useState("");
-  const [filtroTipo, setFiltroTipo] = useState<TipoFiltro>("todas");
+  const [statusFiltro, setStatusFiltro] = useState<"Todos" | "Pendente" | "Concluída">("Pendente");
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>("Todas");
+  const [prioridadeFiltro, setPrioridadeFiltro] = useState<string>("Todas");
+  const [periodoFiltro, setPeriodoFiltro] = useState<FiltroPeriodo>("todos");
+  const [dataEspecificaFiltro, setDataEspecificaFiltro] = useState<string>("");
+  const [incluirEtapasProjetos, setIncluirEtapasProjetos] = useState(true);
 
-  // Only consider pending tasks and active projects
-  const tarefasPendentes = useMemo(() => {
-    return tarefas.filter((t) => t.status === "Pendente");
-  }, [tarefas]);
+  // View mode: sections (buckets) or continuous list
+  const [viewMode, setViewMode] = useState<TipoVisualizacao>("secoes");
 
-  const projetosAtivos = useMemo(() => {
-    return projetos.filter((p) => p.status !== "Concluído");
-  }, [projetos]);
+  // Mobile filters collapse toggle (open or closed)
+  const [showFiltersMobile, setShowFiltersMobile] = useState(false);
 
-  // Extract actionable pending project steps as pseudo-tasks
-  const etapasPendentes = useMemo(() => {
+  // Quick New Task Modal / Box state
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [novoTitulo, setNovoTitulo] = useState("");
+  const [novaDescricao, setNovaDescricao] = useState("");
+  const [novaCategoria, setNovaCategoria] = useState(categorias[0] || "Trabalho");
+  const [novaPrioridade, setNovaPrioridade] = useState<Prioridade>("Média");
+  const [novaDataVencimento, setNovaDataVencimento] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Active filter count for badge
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (busca.trim()) count++;
+    if (statusFiltro !== "Pendente") count++; // default is "Pendente"
+    if (categoriaFiltro !== "Todas") count++;
+    if (prioridadeFiltro !== "Todas") count++;
+    if (periodoFiltro !== "todos") count++;
+    if (dataEspecificaFiltro) count++;
+    return count;
+  }, [busca, statusFiltro, categoriaFiltro, prioridadeFiltro, periodoFiltro, dataEspecificaFiltro]);
+
+  const handleResetFilters = () => {
+    setBusca("");
+    setStatusFiltro("Pendente");
+    setCategoriaFiltro("Todas");
+    setPrioridadeFiltro("Todas");
+    setPeriodoFiltro("todos");
+    setDataEspecificaFiltro("");
+  };
+
+  // Submit quick create task
+  const handleQuickCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!novoTitulo.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      await onCreateTask({
+        titulo: novoTitulo.trim(),
+        descricao: novaDescricao.trim(),
+        categoria: novaCategoria,
+        prioridade: novaPrioridade,
+        data_vencimento: novaDataVencimento,
+      });
+      setNovoTitulo("");
+      setNovaDescricao("");
+      setShowCreateForm(false);
+      onShowToast("✅ Tarefa criada com sucesso no cronograma!", "success");
+    } catch (err: any) {
+      alert("Erro ao criar tarefa.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 1. Filter Tasks
+  const tarefasFiltradas = useMemo(() => {
+    return tarefas.filter((t) => {
+      // Status
+      if (statusFiltro !== "Todos" && t.status !== statusFiltro) return false;
+
+      // Categoria
+      if (categoriaFiltro !== "Todas" && t.categoria !== categoriaFiltro) return false;
+
+      // Prioridade
+      if (prioridadeFiltro !== "Todas" && t.prioridade !== prioridadeFiltro) return false;
+
+      // Busca texto
+      if (busca.trim()) {
+        const q = busca.toLowerCase();
+        const matchTitulo = (t.titulo || "").toLowerCase().includes(q);
+        const matchDesc = (t.descricao || "").toLowerCase().includes(q);
+        if (!matchTitulo && !matchDesc) return false;
+      }
+
+      // Data específica
+      if (dataEspecificaFiltro && t.data_vencimento !== dataEspecificaFiltro) return false;
+
+      // Período
+      if (periodoFiltro !== "todos") {
+        const diff = getDaysDiff(t.data_vencimento);
+        if (periodoFiltro === "sem_data" && diff !== null) return false;
+        if (periodoFiltro === "vencidas" && (diff === null || diff >= 0)) return false;
+        if (periodoFiltro === "hoje" && diff !== 0) return false;
+        if (periodoFiltro === "amanha" && diff !== 1) return false;
+        if (periodoFiltro === "7dias" && (diff === null || diff < 0 || diff > 7)) return false;
+      }
+
+      return true;
+    });
+  }, [
+    tarefas,
+    statusFiltro,
+    categoriaFiltro,
+    prioridadeFiltro,
+    busca,
+    dataEspecificaFiltro,
+    periodoFiltro,
+  ]);
+
+  // 2. Extract and Filter Project Steps (if included and status is Pendente or Todos)
+  const etapasFiltradas = useMemo(() => {
+    if (!incluirEtapasProjetos || statusFiltro === "Concluída") return [];
+
     const list: EtapaItemUpcoming[] = [];
+    const projetosAtivos = projetos.filter((p) => p.status !== "Concluído");
+
     projetosAtivos.forEach((proj) => {
+      if (categoriaFiltro !== "Todas" && proj.categoria !== categoriaFiltro) return;
+
       (proj.passos || []).forEach((step) => {
         if (!step.concluido) {
-          // Use the step's specific deadline if set, otherwise fallback to project deadline
           const dateStr = step.data_limite || proj.data_limite || "";
+
+          // Filter by busca
+          if (busca.trim()) {
+            const q = busca.toLowerCase();
+            const matchTitulo = (step.titulo || "").toLowerCase().includes(q);
+            const matchProj = (proj.titulo || "").toLowerCase().includes(q);
+            if (!matchTitulo && !matchProj) return;
+          }
+
+          // Data específica
+          if (dataEspecificaFiltro && dateStr !== dataEspecificaFiltro) return;
+
+          // Período
+          if (periodoFiltro !== "todos") {
+            const diff = getDaysDiff(dateStr);
+            if (periodoFiltro === "sem_data" && diff !== null) return;
+            if (periodoFiltro === "vencidas" && (diff === null || diff >= 0)) return;
+            if (periodoFiltro === "hoje" && diff !== 0) return;
+            if (periodoFiltro === "amanha" && diff !== 1) return;
+            if (periodoFiltro === "7dias" && (diff === null || diff < 0 || diff > 7)) return;
+          }
+
           list.push({
             id: `step_${proj.id}_${step.id}`,
             stepId: step.id,
@@ -146,50 +314,76 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
         }
       });
     });
+
     return list;
-  }, [projetosAtivos]);
+  }, [
+    projetos,
+    incluirEtapasProjetos,
+    statusFiltro,
+    categoriaFiltro,
+    busca,
+    dataEspecificaFiltro,
+    periodoFiltro,
+  ]);
 
-  // Filter by search and category
-  const tarefasFiltradas = useMemo(() => {
-    return tarefasPendentes.filter((t) => {
-      if (categoriaFiltro !== "Todas" && t.categoria !== categoriaFiltro) return false;
-      if (busca.trim()) {
-        const q = busca.toLowerCase();
-        const matchTitulo = t.titulo.toLowerCase().includes(q);
-        const matchDesc = (t.descricao || "").toLowerCase().includes(q);
-        if (!matchTitulo && !matchDesc) return false;
-      }
-      return true;
+  // 3. STRICT CHRONOLOGICAL SORTING (DEFAULT)
+  // Ascending by date: overdue first, then today, tomorrow, this week, future, no date at the end
+  const sortedTasks = useMemo(() => {
+    return [...tarefasFiltradas].sort((a, b) => {
+      if (!a.data_vencimento && !b.data_vencimento) return 0;
+      if (!a.data_vencimento) return 1;
+      if (!b.data_vencimento) return -1;
+      return a.data_vencimento.localeCompare(b.data_vencimento);
     });
-  }, [tarefasPendentes, categoriaFiltro, busca]);
+  }, [tarefasFiltradas]);
 
-  const etapasFiltradas = useMemo(() => {
-    return etapasPendentes.filter((e) => {
-      if (categoriaFiltro !== "Todas" && e.categoria !== categoriaFiltro) return false;
-      if (busca.trim()) {
-        const q = busca.toLowerCase();
-        const matchTitulo = e.titulo.toLowerCase().includes(q);
-        const matchProj = e.projetoTitulo.toLowerCase().includes(q);
-        if (!matchTitulo && !matchProj) return false;
-      }
-      return true;
+  const sortedSteps = useMemo(() => {
+    return [...etapasFiltradas].sort((a, b) => {
+      if (!a.data_vencimento && !b.data_vencimento) return 0;
+      if (!a.data_vencimento) return 1;
+      if (!b.data_vencimento) return -1;
+      return a.data_vencimento.localeCompare(b.data_vencimento);
     });
-  }, [etapasPendentes, categoriaFiltro, busca]);
+  }, [etapasFiltradas]);
 
-  const projetosFiltrados = useMemo(() => {
-    return projetosAtivos.filter((p) => {
-      if (categoriaFiltro !== "Todas" && p.categoria !== categoriaFiltro) return false;
-      if (busca.trim()) {
-        const q = busca.toLowerCase();
-        const matchTitulo = p.titulo.toLowerCase().includes(q);
-        const matchDesc = (p.descricao || "").toLowerCase().includes(q);
-        if (!matchTitulo && !matchDesc) return false;
-      }
-      return true;
+  // Combined flat list sorted chronologically
+  const flatChronologicalList = useMemo(() => {
+    type UnifiedItem =
+      | { type: "task"; data: Tarefa; dateStr: string; diff: number | null }
+      | { type: "step"; data: EtapaItemUpcoming; dateStr: string; diff: number | null };
+
+    const combined: UnifiedItem[] = [];
+
+    sortedTasks.forEach((t) => {
+      combined.push({
+        type: "task",
+        data: t,
+        dateStr: t.data_vencimento || "",
+        diff: getDaysDiff(t.data_vencimento),
+      });
     });
-  }, [projetosAtivos, categoriaFiltro, busca]);
 
-  // Group items by chronological bucket
+    sortedSteps.forEach((s) => {
+      combined.push({
+        type: "step",
+        data: s,
+        dateStr: s.data_vencimento || "",
+        diff: getDaysDiff(s.data_vencimento),
+      });
+    });
+
+    // Sort strictly by date ascending: earlier dates first, null dates at end
+    combined.sort((a, b) => {
+      if (a.diff === null && b.diff === null) return 0;
+      if (a.diff === null) return 1;
+      if (b.diff === null) return -1;
+      return a.diff - b.diff;
+    });
+
+    return combined;
+  }, [sortedTasks, sortedSteps]);
+
+  // 4. Chronological Buckets (Timeline View)
   const buckets = useMemo(() => {
     const overdueTasks: Tarefa[] = [];
     const todayTasks: Tarefa[] = [];
@@ -204,21 +398,6 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
     const thisWeekSteps: EtapaItemUpcoming[] = [];
     const laterSteps: EtapaItemUpcoming[] = [];
     const noDateSteps: EtapaItemUpcoming[] = [];
-
-    const overdueProjects: Projeto[] = [];
-    const todayProjects: Projeto[] = [];
-    const tomorrowProjects: Projeto[] = [];
-    const thisWeekProjects: Projeto[] = [];
-    const laterProjects: Projeto[] = [];
-    const noDateProjects: Projeto[] = [];
-
-    // Sort tasks chronologically ascending (earliest dates first)
-    const sortedTasks = [...tarefasFiltradas].sort((a, b) => {
-      if (!a.data_vencimento && !b.data_vencimento) return 0;
-      if (!a.data_vencimento) return 1;
-      if (!b.data_vencimento) return -1;
-      return a.data_vencimento.localeCompare(b.data_vencimento);
-    });
 
     sortedTasks.forEach((t) => {
       const diff = getDaysDiff(t.data_vencimento);
@@ -235,14 +414,6 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
       } else {
         laterTasks.push(t);
       }
-    });
-
-    // Sort steps chronologically ascending (earliest dates first)
-    const sortedSteps = [...etapasFiltradas].sort((a, b) => {
-      if (!a.data_vencimento && !b.data_vencimento) return 0;
-      if (!a.data_vencimento) return 1;
-      if (!b.data_vencimento) return -1;
-      return a.data_vencimento.localeCompare(b.data_vencimento);
     });
 
     sortedSteps.forEach((s) => {
@@ -262,44 +433,18 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
       }
     });
 
-    // Sort projects chronologically ascending by data_limite
-    const sortedProjects = [...projetosFiltrados].sort((a, b) => {
-      if (!a.data_limite && !b.data_limite) return 0;
-      if (!a.data_limite) return 1;
-      if (!b.data_limite) return -1;
-      return a.data_limite.localeCompare(b.data_limite);
-    });
-
-    sortedProjects.forEach((p) => {
-      const diff = getDaysDiff(p.data_limite);
-      if (diff === null) {
-        noDateProjects.push(p);
-      } else if (diff < 0) {
-        overdueProjects.push(p);
-      } else if (diff === 0) {
-        todayProjects.push(p);
-      } else if (diff === 1) {
-        tomorrowProjects.push(p);
-      } else if (diff <= 7) {
-        thisWeekProjects.push(p);
-      } else {
-        laterProjects.push(p);
-      }
-    });
-
     return [
       {
         id: "overdue",
         title: "Vencidas / Atrasadas",
-        subtitle: "Requerem ação imediata",
+        subtitle: "Atenção: requerem ação imediata",
         icon: AlertTriangle,
         color: "text-rose-700",
-        badgeBg: "bg-rose-100 text-rose-800 border-rose-200",
+        badgeBg: "bg-rose-100 text-rose-800 border-rose-200 font-bold",
         containerBg: "bg-rose-50/40 border-rose-200",
         headerBorder: "border-rose-200",
         tasks: overdueTasks,
         steps: overdueSteps,
-        projects: overdueProjects,
         total: overdueTasks.length + overdueSteps.length,
       },
       {
@@ -308,12 +453,11 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
         subtitle: "Prioridade para o dia de hoje",
         icon: Flame,
         color: "text-amber-700",
-        badgeBg: "bg-amber-100 text-amber-800 border-amber-200",
+        badgeBg: "bg-amber-100 text-amber-800 border-amber-200 font-bold",
         containerBg: "bg-amber-50/30 border-amber-200",
         headerBorder: "border-amber-200",
         tasks: todayTasks,
         steps: todaySteps,
-        projects: todayProjects,
         total: todayTasks.length + todaySteps.length,
       },
       {
@@ -322,32 +466,30 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
         subtitle: "Programação para o dia seguinte",
         icon: CalendarClock,
         color: "text-blue-700",
-        badgeBg: "bg-blue-100 text-blue-800 border-blue-200",
+        badgeBg: "bg-blue-100 text-blue-800 border-blue-200 font-semibold",
         containerBg: "bg-blue-50/20 border-blue-200",
         headerBorder: "border-blue-200",
         tasks: tomorrowTasks,
         steps: tomorrowSteps,
-        projects: tomorrowProjects,
         total: tomorrowTasks.length + tomorrowSteps.length,
       },
       {
         id: "this_week",
         title: "Esta Semana (Próximos 7 Dias)",
-        subtitle: "Vencimentos nos próximos dias",
+        subtitle: "Vencimentos no radar desta semana",
         icon: Calendar,
         color: "text-indigo-700",
-        badgeBg: "bg-indigo-100 text-indigo-800 border-indigo-200",
+        badgeBg: "bg-indigo-100 text-indigo-800 border-indigo-200 font-medium",
         containerBg: "bg-white border-slate-200",
         headerBorder: "border-slate-100",
         tasks: thisWeekTasks,
         steps: thisWeekSteps,
-        projects: thisWeekProjects,
         total: thisWeekTasks.length + thisWeekSteps.length,
       },
       {
         id: "later",
         title: "Mais Adiante (Futuras)",
-        subtitle: "Prazos com mais de 7 dias",
+        subtitle: "Prazos programados além de 7 dias",
         icon: Clock,
         color: "text-slate-700",
         badgeBg: "bg-slate-100 text-slate-800 border-slate-200",
@@ -355,7 +497,6 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
         headerBorder: "border-slate-100",
         tasks: laterTasks,
         steps: laterSteps,
-        projects: laterProjects,
         total: laterTasks.length + laterSteps.length,
       },
       {
@@ -369,85 +510,120 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
         headerBorder: "border-slate-100",
         tasks: noDateTasks,
         steps: noDateSteps,
-        projects: noDateProjects,
         total: noDateTasks.length + noDateSteps.length,
       },
     ];
-  }, [tarefasFiltradas, etapasFiltradas, projetosFiltrados]);
+  }, [sortedTasks, sortedSteps]);
 
-  // Overall metric counts
+  // Overall KPI counts
   const totalOverdue = buckets[0].total;
   const totalToday = buckets[1].total;
   const totalThisWeek = buckets[2].total + buckets[3].total;
-  const totalGeral = tarefasPendentes.length + etapasPendentes.length;
+  const totalVisivel = sortedTasks.length + sortedSteps.length;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Top Banner & Date KPI Summary */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
+    <div className="space-y-5 max-w-5xl mx-auto">
+      {/* ===================================================================== */}
+      {/* 1. TOP HEADER & KPI CARDS */}
+      {/* ===================================================================== */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xl">📅</span>
+              <span className="text-2xl">📅</span>
               <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-                Em Breve (Cronograma por Vencimento)
+                Em Breve (Cronograma de Prazos)
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Tarefas e etapas de projetos organizadas por prazo, das mais urgentes às futuras.
+              Suas tarefas e etapas ordenadas estritamente por ordem de vencimento, com filtros completos e edição direta.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Toggle Filters Mobile */}
             <button
-              onClick={() => onNavigateToTab("manual")}
-              className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs cursor-pointer flex items-center gap-1.5 transition-colors"
+              onClick={() => setShowFiltersMobile((prev) => !prev)}
+              className={`sm:hidden px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                showFiltersMobile || activeFiltersCount > 0
+                  ? "bg-indigo-50 text-indigo-700 border-indigo-300"
+                  : "bg-slate-50 text-slate-700 border-slate-200"
+              }`}
             >
-              <span>+ Nova Tarefa</span>
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filtros</span>
+              {activeFiltersCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">
+                  {activeFiltersCount}
+                </span>
+              )}
             </button>
+
+            {/* Quick Create Task Button */}
             <button
-              onClick={() => onNavigateToTab("projetos")}
-              className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-semibold cursor-pointer flex items-center gap-1.5 transition-colors"
+              onClick={() => setShowCreateForm((prev) => !prev)}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <span>+ Projetos & Etapas</span>
+              <Plus className="w-4 h-4" />
+              <span>{showCreateForm ? "Fechar" : "Nova Tarefa"}</span>
             </button>
           </div>
         </div>
 
-        {/* KPI Cards Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2">
+        {/* 4 Mini KPI Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
           <div
-            className={`p-3 rounded-xl border flex flex-col justify-between ${
-              totalOverdue > 0
-                ? "bg-rose-50/70 border-rose-200 text-rose-900"
-                : "bg-slate-50/70 border-slate-200 text-slate-700"
+            onClick={() => setPeriodoFiltro(periodoFiltro === "vencidas" ? "todos" : "vencidas")}
+            className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+              periodoFiltro === "vencidas"
+                ? "bg-rose-100/70 border-rose-400 ring-2 ring-rose-500/20"
+                : totalOverdue > 0
+                ? "bg-rose-50/60 border-rose-200/90 hover:bg-rose-100/50 text-rose-900"
+                : "bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100/60"
             }`}
+            title="Clique para filtrar apenas atrasadas"
           >
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Atrasadas
             </span>
             <div className="flex items-baseline justify-between mt-1">
               <span className="text-xl font-black text-rose-600">{totalOverdue}</span>
               {totalOverdue > 0 && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-200 text-rose-800">
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-200 text-rose-800">
                   Urgente
                 </span>
               )}
             </div>
           </div>
 
-          <div className="p-3 rounded-xl border bg-amber-50/50 border-amber-200 flex flex-col justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">
+          <div
+            onClick={() => setPeriodoFiltro(periodoFiltro === "hoje" ? "todos" : "hoje")}
+            className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+              periodoFiltro === "hoje"
+                ? "bg-amber-100/70 border-amber-400 ring-2 ring-amber-500/20"
+                : "bg-amber-50/50 border-amber-200 hover:bg-amber-100/50"
+            }`}
+            title="Clique para filtrar apenas as que vencem hoje"
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
               Vencem Hoje
             </span>
             <div className="flex items-baseline justify-between mt-1">
               <span className="text-xl font-black text-amber-600">{totalToday}</span>
-              <span className="text-[10px] font-semibold text-amber-700">prioritárias</span>
+              <span className="text-[10px] font-semibold text-amber-700">hoje</span>
             </div>
           </div>
 
-          <div className="p-3 rounded-xl border bg-indigo-50/40 border-indigo-100 flex flex-col justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">
+          <div
+            onClick={() => setPeriodoFiltro(periodoFiltro === "7dias" ? "todos" : "7dias")}
+            className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+              periodoFiltro === "7dias"
+                ? "bg-indigo-100/70 border-indigo-400 ring-2 ring-indigo-500/20"
+                : "bg-indigo-50/40 border-indigo-100 hover:bg-indigo-100/50"
+            }`}
+            title="Clique para filtrar os próximos 7 dias"
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">
               Próximos 7 Dias
             </span>
             <div className="flex items-baseline justify-between mt-1">
@@ -456,438 +632,721 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
             </div>
           </div>
 
-          <div className="p-3 rounded-xl border bg-slate-50/70 border-slate-200 flex flex-col justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Total Pendências
+          <div
+            onClick={handleResetFilters}
+            className="p-3 rounded-xl border bg-slate-50/70 border-slate-200 hover:bg-slate-100 transition-all cursor-pointer flex flex-col justify-between"
+            title="Clique para limpar filtros e ver todas"
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Tarefas no Radar
             </span>
             <div className="flex items-baseline justify-between mt-1">
-              <span className="text-xl font-black text-slate-800">{totalGeral}</span>
-              <span className="text-[10px] text-slate-500">ações ativas</span>
+              <span className="text-xl font-black text-slate-800">{totalVisivel}</span>
+              <span className="text-[10px] text-slate-400 font-medium">ver tudo</span>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Quick Search & Filter Controls */}
-        <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="relative w-full sm:w-72">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      {/* ===================================================================== */}
+      {/* FORM: INLINE QUICK CREATE NEW TASK */}
+      {/* ===================================================================== */}
+      {showCreateForm && (
+        <div className="bg-white rounded-2xl border-2 border-indigo-400/80 shadow-md p-5 space-y-3 ring-4 ring-indigo-500/10 animate-in fade-in duration-150">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Plus className="w-4 h-4 text-indigo-600" />
+              <span>Nova Tarefa no Cronograma</span>
+            </h3>
+            <button
+              onClick={() => setShowCreateForm(false)}
+              className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+
+          <form onSubmit={handleQuickCreate} className="space-y-3">
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Título da Tarefa *
+              </label>
+              <input
+                type="text"
+                required
+                autoFocus
+                value={novoTitulo}
+                onChange={(e) => setNovoTitulo(e.target.value)}
+                placeholder="Ex: Entregar relatório trimestral, Ligar para cliente..."
+                className="w-full px-3.5 py-2 text-sm font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 placeholder:text-slate-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Descrição ou Observações (opcional)
+              </label>
+              <input
+                type="text"
+                value={novaDescricao}
+                onChange={(e) => setNovaDescricao(e.target.value)}
+                placeholder="Detalhes, links ou contexto..."
+                className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 placeholder:text-slate-400"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Categoria
+                </label>
+                <select
+                  value={novaCategoria}
+                  onChange={(e) => setNovaCategoria(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-800 cursor-pointer"
+                >
+                  {categorias.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Prioridade
+                </label>
+                <select
+                  value={novaPrioridade}
+                  onChange={(e) => setNovaPrioridade(e.target.value as Prioridade)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-800 cursor-pointer"
+                >
+                  <option value="Alta">🔴 Alta</option>
+                  <option value="Média">🟡 Média</option>
+                  <option value="Baixa">🟢 Baixa</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Data de Vencimento
+                </label>
+                <input
+                  type="date"
+                  value={novaDataVencimento}
+                  onChange={(e) => setNovaDataVencimento(e.target.value)}
+                  className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-800 cursor-pointer"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowCreateForm(false)}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 rounded-lg cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || !novoTitulo.trim()}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitting ? "Salvando..." : "Salvar Tarefa"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* 2. COMPLETE FILTER PANEL (THE ONES REQUESTED BY THE USER) */}
+      {/* ===================================================================== */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3">
+        {/* Row 1: Search & Quick Período Chips */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          {/* BUSCA */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar em tarefas e etapas..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+              placeholder="Buscar tarefa ou palavra-chave..."
+              className="w-full pl-10 pr-3.5 py-2 text-xs sm:text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 transition-all placeholder:text-slate-400"
             />
             {busca && (
               <button
                 onClick={() => setBusca("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
               >
                 ✕
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-            {/* Filter by Type */}
-            <div className="bg-slate-100 p-0.5 rounded-xl flex items-center gap-0.5 shrink-0">
-              <button
-                onClick={() => setFiltroTipo("todas")}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-                  filtroTipo === "todas"
-                    ? "bg-white text-slate-900 shadow-xs"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Tudo
-              </button>
-              <button
-                onClick={() => setFiltroTipo("tarefas")}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-                  filtroTipo === "tarefas"
-                    ? "bg-white text-slate-900 shadow-xs"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Tarefas ({tarefasFiltradas.length})
-              </button>
-              <button
-                onClick={() => setFiltroTipo("etapas")}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-                  filtroTipo === "etapas"
-                    ? "bg-white text-slate-900 shadow-xs"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Etapas ({etapasFiltradas.length})
-              </button>
-              <button
-                onClick={() => setFiltroTipo("projetos")}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-                  filtroTipo === "projetos"
-                    ? "bg-white text-slate-900 shadow-xs"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Projetos ({projetosFiltrados.length})
-              </button>
+          {/* View Mode Toggle: Seções vs Lista Contínua */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold shrink-0">
+            <button
+              onClick={() => setViewMode("secoes")}
+              className={`px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                viewMode === "secoes"
+                  ? "bg-white text-indigo-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Timeline
+            </button>
+            <button
+              onClick={() => setViewMode("lista_continua")}
+              className={`px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                viewMode === "lista_continua"
+                  ? "bg-white text-indigo-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Lista Contínua
+            </button>
+          </div>
+
+          {/* Reset Filters Button if any is active */}
+          {activeFiltersCount > 0 && (
+            <button
+              onClick={handleResetFilters}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+              title="Resetar todos os filtros para o padrão"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Limpar ({activeFiltersCount})</span>
+            </button>
+          )}
+        </div>
+
+        {/* Row 2: The Core Filters (Always visible on desktop, toggleable on mobile) */}
+        <div className={`space-y-3 pt-2 border-t border-slate-100 ${showFiltersMobile ? "block" : "hidden sm:block"}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+            {/* STATUS DA TAREFA */}
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                Status da Tarefa
+              </label>
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl font-semibold">
+                {(["Pendente", "Todos", "Concluída"] as const).map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setStatusFiltro(st)}
+                    className={`flex-1 py-1 text-center rounded-lg transition-colors cursor-pointer text-[11px] ${
+                      statusFiltro === st
+                        ? "bg-white text-indigo-700 shadow-xs font-bold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Optional Category Filter dropdown */}
-            <select
-              value={categoriaFiltro}
-              onChange={(e) => setCategoriaFiltro(e.target.value)}
-              className="px-2.5 py-1 text-xs font-semibold bg-slate-100 hover:bg-slate-200/70 border border-slate-200 rounded-xl text-slate-700 cursor-pointer focus:outline-hidden shrink-0"
-            >
-              <option value="Todas">Todas as Categorias</option>
-              {categorias.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
+            {/* CATEGORIA */}
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center justify-between">
+                <span>Categoria</span>
+                <span className="text-[10px] font-normal text-slate-400">
+                  {categorias.length} cadastradas
+                </span>
+              </label>
+              <select
+                value={categoriaFiltro}
+                onChange={(e) => setCategoriaFiltro(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-800 cursor-pointer focus:outline-hidden"
+              >
+                <option value="Todas">Todas as Categorias</option>
+                {categorias.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* PRIORIDADE */}
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                Prioridade
+              </label>
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl font-semibold">
+                {["Todas", "Alta", "Média", "Baixa"].map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPrioridadeFiltro(p)}
+                    className={`flex-1 py-1 text-center rounded-lg transition-colors cursor-pointer text-[11px] ${
+                      prioridadeFiltro === p
+                        ? "bg-white text-indigo-700 shadow-xs font-bold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* DATA DE VENCIMENTO ESPECÍFICA */}
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                Data de Vencimento
+              </label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={dataEspecificaFiltro}
+                  onChange={(e) => setDataEspecificaFiltro(e.target.value)}
+                  className="w-full px-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 cursor-pointer focus:outline-hidden"
+                />
+                {dataEspecificaFiltro && (
+                  <button
+                    onClick={() => setDataEspecificaFiltro("")}
+                    className="p-1 text-slate-400 hover:text-slate-600 text-xs"
+                    title="Limpar data"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Shortcuts for Period + Project Step Toggle */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <div className="flex flex-wrap items-center gap-1 text-[11px]">
+              <span className="text-[10px] font-bold uppercase text-slate-400 mr-1">
+                Período:
+              </span>
+              {[
+                { id: "todos", label: "Todos os Prazos" },
+                { id: "vencidas", label: "Atrasadas" },
+                { id: "hoje", label: "Hoje" },
+                { id: "amanha", label: "Amanhã" },
+                { id: "7dias", label: "7 Dias" },
+                { id: "sem_data", label: "Sem Data" },
+              ].map((per) => (
+                <button
+                  key={per.id}
+                  onClick={() => setPeriodoFiltro(per.id as FiltroPeriodo)}
+                  className={`px-2.5 py-0.5 rounded-lg border font-semibold transition-colors cursor-pointer ${
+                    periodoFiltro === per.id
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  {per.label}
+                </button>
               ))}
-            </select>
+            </div>
+
+            {/* Toggle Project Steps */}
+            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={incluirEtapasProjetos}
+                onChange={(e) => setIncluirEtapasProjetos(e.target.checked)}
+                className="w-3.5 h-3.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+              />
+              <span>Incluir etapas de projetos ({etapasFiltradas.length})</span>
+            </label>
           </div>
         </div>
       </div>
 
-      {/* Chronological Timeline Sections */}
-      <div className="space-y-5">
-        {buckets.map((bucket) => {
-          const visibleTasks = filtroTipo === "projetos" || filtroTipo === "etapas" ? [] : bucket.tasks;
-          const visibleSteps = filtroTipo === "projetos" || filtroTipo === "tarefas" ? [] : bucket.steps;
-          const visibleProjects = filtroTipo === "todas" || filtroTipo === "projetos" ? bucket.projects : [];
-
-          const totalItemsInBucket =
-            filtroTipo === "projetos"
-              ? visibleProjects.length
-              : filtroTipo === "tarefas"
-              ? visibleTasks.length
-              : filtroTipo === "etapas"
-              ? visibleSteps.length
-              : visibleTasks.length + visibleSteps.length + (visibleProjects.length > 0 && visibleTasks.length === 0 && visibleSteps.length === 0 ? visibleProjects.length : 0);
-
-          if (totalItemsInBucket === 0) return null;
-
-          const IconComponent = bucket.icon;
-
-          return (
-            <div
-              key={bucket.id}
-              className={`rounded-2xl border ${bucket.containerBg} shadow-xs overflow-hidden transition-all`}
+      {/* ===================================================================== */}
+      {/* 3. TASK LIST / TIMELINE (ORDERED BY DATE ASCENDING) */}
+      {/* ===================================================================== */}
+      {totalVisivel === 0 ? (
+        <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-xs">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
+            <CalendarClock className="w-7 h-7" />
+          </div>
+          <h3 className="text-base font-bold text-slate-900 mb-1">
+            Nenhuma tarefa encontrada
+          </h3>
+          <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto mb-4">
+            Não há tarefas correspondentes aos filtros selecionados. Crie uma nova tarefa agora ou redefina os filtros.
+          </p>
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold cursor-pointer shadow-xs"
             >
-              {/* Section Header */}
-              <div
-                className={`px-5 py-3.5 border-b ${bucket.headerBorder} flex items-center justify-between gap-3 bg-white/70`}
+              + Criar Tarefa Agora
+            </button>
+            {activeFiltersCount > 0 && (
+              <button
+                onClick={handleResetFilters}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
               >
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className={`w-7 h-7 rounded-xl flex items-center justify-center ${
-                      bucket.id === "overdue"
-                        ? "bg-rose-100 text-rose-700"
-                        : bucket.id === "today"
-                        ? "bg-amber-100 text-amber-700"
-                        : bucket.id === "tomorrow"
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    <IconComponent className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className={`text-sm sm:text-base font-bold ${bucket.color}`}>
-                        {bucket.title}
-                      </h3>
-                      <span
-                        className={`text-[11px] font-bold px-2 py-0.2 rounded-full border ${bucket.badgeBg}`}
+                Limpar Filtros
+              </button>
+            )}
+          </div>
+        </div>
+      ) : viewMode === "lista_continua" ? (
+        /* ------------------------------------------------------------------- */
+        /* VIEW A: CONTINUOUS FLAT LIST ORDERED STRICTLY BY DATE */
+        /* ------------------------------------------------------------------- */
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between px-1 text-xs text-slate-500 font-semibold">
+            <span>Lista Contínua por Ordem Cronológica ({flatChronologicalList.length})</span>
+            <span>Da mais antiga / urgente para as futuras</span>
+          </div>
+
+          {flatChronologicalList.map((item) => {
+            if (item.type === "task") {
+              const t = item.data;
+              const rel = formatRelativeDate(t.data_vencimento);
+              const isDone = t.status === "Concluída";
+
+              return (
+                <div
+                  key={t.id}
+                  className={`bg-white rounded-xl border p-3.5 transition-all shadow-2xs hover:shadow-xs flex items-start justify-between gap-3 group ${
+                    isDone
+                      ? "bg-slate-50/70 border-slate-200 text-slate-400"
+                      : t.data_vencimento && getDaysDiff(t.data_vencimento)! < 0
+                      ? "border-rose-200/90 hover:border-rose-300"
+                      : "border-slate-200 hover:border-indigo-300"
+                  }`}
+                >
+                  {/* Left: Checkbox & Info */}
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <button
+                      onClick={() => onToggleTaskStatus(t.id, t.status)}
+                      className={`mt-0.5 w-5 h-5 rounded-lg border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                        isDone
+                          ? "bg-emerald-600 border-emerald-600 text-white shadow-xs"
+                          : "border-slate-300 hover:border-indigo-600 bg-white hover:bg-indigo-50/50"
+                      }`}
+                      title={isDone ? "Marcar como pendente" : "Marcar como concluída"}
+                    >
+                      {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    </button>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold ${rel.badgeClass}`}
+                        >
+                          {rel.text}
+                        </span>
+
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded-md border font-bold uppercase ${
+                            t.prioridade === "Alta"
+                              ? "bg-rose-50 text-rose-700 border-rose-200"
+                              : t.prioridade === "Média"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          }`}
+                        >
+                          {t.prioridade}
+                        </span>
+
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                          {t.categoria}
+                        </span>
+                      </div>
+
+                      <h4
+                        className={`text-sm font-semibold leading-snug break-words ${
+                          isDone ? "line-through text-slate-400" : "text-slate-900"
+                        }`}
                       >
-                        {visibleTasks.length + visibleSteps.length}
-                      </span>
+                        {t.titulo}
+                      </h4>
+
+                      {t.descricao && (
+                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                          {t.descricao}
+                        </p>
+                      )}
                     </div>
-                    <p className="text-[11px] text-slate-500">{bucket.subtitle}</p>
+                  </div>
+
+                  {/* Right Actions: Edit & Delete */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => onEditTask(t)}
+                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                      title="Editar esta tarefa"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Deseja excluir a tarefa "${t.titulo}"?`)) {
+                          onDeleteTask(t.id);
+                        }
+                      }}
+                      className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                      title="Excluir tarefa"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            } else {
+              // Project Step
+              const etapa = item.data;
+              const rel = formatRelativeDate(etapa.data_vencimento);
+
+              return (
+                <div
+                  key={etapa.id}
+                  className="bg-white rounded-xl border border-indigo-100 p-3.5 transition-all shadow-2xs hover:border-indigo-300 flex items-start justify-between gap-3 group"
+                >
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <button
+                      onClick={() => onToggleProjectStep(etapa.projetoId, etapa.step)}
+                      className="mt-0.5 w-5 h-5 rounded-lg border-2 border-indigo-300 hover:border-emerald-500 hover:bg-emerald-50 bg-white flex items-center justify-center text-transparent hover:text-emerald-600 transition-colors cursor-pointer shrink-0"
+                      title="Marcar etapa como concluída"
+                    >
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    </button>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                          <FolderKanban className="w-3 h-3" />
+                          {etapa.projetoTitulo}
+                        </span>
+
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold ${rel.badgeClass}`}
+                        >
+                          {rel.text}
+                        </span>
+
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold flex items-center gap-1">
+                          <Layers className="w-3 h-3" />
+                          Etapa
+                        </span>
+                      </div>
+
+                      <h4 className="text-sm font-semibold text-slate-900 leading-snug">
+                        {etapa.titulo}
+                      </h4>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+          })}
+        </div>
+      ) : (
+        /* ------------------------------------------------------------------- */
+        /* VIEW B: CHRONOLOGICAL SECTIONS (TIMELINE BUCKETS) */
+        /* ------------------------------------------------------------------- */
+        <div className="space-y-5">
+          {buckets.map((bucket) => {
+            if (bucket.total === 0) return null;
+            const IconComponent = bucket.icon;
+
+            return (
+              <div
+                key={bucket.id}
+                className={`rounded-2xl border ${bucket.containerBg} shadow-xs overflow-hidden transition-all`}
+              >
+                {/* Section Header */}
+                <div
+                  className={`px-4 sm:px-5 py-3 border-b ${bucket.headerBorder} flex items-center justify-between gap-3 bg-white/70`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className={`w-7 h-7 rounded-xl flex items-center justify-center ${
+                        bucket.id === "overdue"
+                          ? "bg-rose-100 text-rose-700"
+                          : bucket.id === "today"
+                          ? "bg-amber-100 text-amber-700"
+                          : bucket.id === "tomorrow"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-slate-100 text-slate-700"
+                      }`}
+                    >
+                      <IconComponent className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className={`text-sm sm:text-base font-bold ${bucket.color}`}>
+                          {bucket.title}
+                        </h3>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.2 rounded-full border ${bucket.badgeBg}`}
+                        >
+                          {bucket.total}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">{bucket.subtitle}</p>
+                    </div>
+                  </div>
+
+                  <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400">
+                    {bucket.tasks.length > 0 && <span>{bucket.tasks.length} tarefa(s)</span>}
+                    {bucket.tasks.length > 0 && bucket.steps.length > 0 && <span>•</span>}
+                    {bucket.steps.length > 0 && <span>{bucket.steps.length} etapa(s) de projeto</span>}
                   </div>
                 </div>
 
-                <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400">
-                  {visibleTasks.length > 0 && <span>{visibleTasks.length} tarefa(s)</span>}
-                  {visibleTasks.length > 0 && visibleSteps.length > 0 && <span>•</span>}
-                  {visibleSteps.length > 0 && <span>{visibleSteps.length} etapa(s) de projeto</span>}
-                </div>
-              </div>
-
-              {/* Items List in Chronological Order */}
-              <div className="p-4 sm:p-5 space-y-3">
-                {/* 1. Tasks in this bucket */}
-                {visibleTasks.map((t) => {
-                  const rel = formatRelativeDate(t.data_vencimento);
-                  const priBadge =
-                    t.prioridade === "Alta"
-                      ? "bg-rose-50 text-rose-700 border-rose-200"
-                      : t.prioridade === "Média"
-                      ? "bg-amber-50 text-amber-700 border-amber-200"
-                      : "bg-emerald-50 text-emerald-700 border-emerald-200";
-
-                  return (
-                    <div
-                      key={t.id}
-                      className="bg-white hover:border-slate-300 rounded-xl border border-slate-200/90 p-3.5 transition-all shadow-2xs flex items-start gap-3 group"
-                    >
-                      {/* Checkbox */}
-                      <button
-                        onClick={() => onToggleTaskStatus(t.id, t.status)}
-                        className="mt-0.5 w-5 h-5 rounded-lg border-2 border-slate-300 hover:border-emerald-500 hover:bg-emerald-50 bg-white flex items-center justify-center text-transparent hover:text-emerald-600 transition-colors cursor-pointer shrink-0"
-                        title="Marcar como concluída"
-                      >
-                        <Check className="w-3 h-3 stroke-[3]" />
-                      </button>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
-                          <h4 className="text-sm font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                            {t.titulo}
-                          </h4>
-
-                          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-                            <span
-                              className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold ${rel.badgeClass}`}
-                            >
-                              {rel.text}
-                            </span>
-                            <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded-md border font-bold uppercase ${priBadge}`}
-                            >
-                              {t.prioridade}
-                            </span>
-                          </div>
-                        </div>
-
-                        {t.descricao && (
-                          <p className="text-xs text-slate-500 line-clamp-2 mb-2">
-                            {t.descricao}
-                          </p>
-                        )}
-
-                        <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1">
-                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium">
-                            📁 {t.categoria}
-                          </span>
-                          {t.data_vencimento && (
-                            <span className="flex items-center gap-1 text-slate-500">
-                              <Calendar className="w-3 h-3 text-slate-400" />
-                              Prazo: {formatBrDate(t.data_vencimento)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* 2. Project Steps in this bucket (treated like actionable tasks) */}
-                {visibleSteps.map((etapa) => {
-                  const rel = formatRelativeDate(etapa.data_vencimento);
-
-                  return (
-                    <div
-                      key={etapa.id}
-                      className="bg-white hover:border-indigo-300 rounded-xl border border-indigo-100/80 p-3.5 transition-all shadow-2xs flex items-start gap-3 group"
-                    >
-                      {/* Checkbox to complete the step */}
-                      <button
-                        onClick={() => onToggleProjectStep(etapa.projetoId, etapa.step)}
-                        className="mt-0.5 w-5 h-5 rounded-lg border-2 border-indigo-300 hover:border-emerald-500 hover:bg-emerald-50 bg-white flex items-center justify-center text-transparent hover:text-emerald-600 transition-colors cursor-pointer shrink-0"
-                        title="Marcar etapa do projeto como concluída"
-                      >
-                        <Check className="w-3 h-3 stroke-[3]" />
-                      </button>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
-                              <FolderKanban className="w-3 h-3" />
-                              {etapa.projetoTitulo}
-                            </span>
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600">
-                              {etapa.categoria}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span
-                              className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold ${rel.badgeClass}`}
-                            >
-                              {rel.text}
-                            </span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold flex items-center gap-1">
-                              <Layers className="w-3 h-3" />
-                              Etapa
-                            </span>
-                          </div>
-                        </div>
-
-                        <h4 className="text-sm font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                          {etapa.titulo}
-                        </h4>
-
-                        <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1">
-                          {etapa.data_vencimento && (
-                            <span className="flex items-center gap-1 text-slate-500">
-                              <Calendar className="w-3 h-3 text-slate-400" />
-                              Prazo da etapa: {formatBrDate(etapa.data_vencimento)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* 3. Projects in this bucket (when project view selected or if no tasks/steps) */}
-                {filtroTipo === "projetos" &&
-                  visibleProjects.map((proj) => {
-                    const rel = formatRelativeDate(proj.data_limite);
-                    const passosPendentes = (proj.passos || []).filter((s) => !s.concluido);
+                {/* Items in this bucket */}
+                <div className="p-3.5 sm:p-4 space-y-2.5">
+                  {/* Tasks */}
+                  {bucket.tasks.map((t) => {
+                    const rel = formatRelativeDate(t.data_vencimento);
+                    const isDone = t.status === "Concluída";
 
                     return (
                       <div
-                        key={proj.id}
-                        className="bg-white hover:border-slate-300 rounded-xl border border-slate-200/90 p-4 transition-all shadow-2xs space-y-3"
+                        key={t.id}
+                        className={`bg-white rounded-xl border p-3.5 transition-all shadow-2xs hover:shadow-xs flex items-start justify-between gap-3 group ${
+                          isDone
+                            ? "bg-slate-50/70 border-slate-200 text-slate-400"
+                            : t.data_vencimento && getDaysDiff(t.data_vencimento)! < 0
+                            ? "border-rose-200/90 hover:border-rose-300"
+                            : "border-slate-200 hover:border-indigo-300"
+                        }`}
                       >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <div className="flex items-start gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 mt-0.5">
-                              <FolderKanban className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium">
-                                  {proj.categoria}
-                                </span>
-                                <h4 className="text-sm font-bold text-slate-900">{proj.titulo}</h4>
-                              </div>
-                              {proj.descricao && (
-                                <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
-                                  {proj.descricao}
-                                </p>
-                              )}
-                            </div>
-                          </div>
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          {/* Checkbox */}
+                          <button
+                            onClick={() => onToggleTaskStatus(t.id, t.status)}
+                            className={`mt-0.5 w-5 h-5 rounded-lg border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                              isDone
+                                ? "bg-emerald-600 border-emerald-600 text-white shadow-xs"
+                                : "border-slate-300 hover:border-indigo-600 bg-white hover:bg-indigo-50/50"
+                            }`}
+                            title={isDone ? "Marcar como pendente" : "Marcar como concluída"}
+                          >
+                            {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                          </button>
 
-                          <div className="flex items-center gap-2 self-start sm:self-auto">
-                            {proj.data_limite && (
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5 mb-1">
                               <span
                                 className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold ${rel.badgeClass}`}
                               >
                                 {rel.text}
                               </span>
-                            )}
-                            <span className="text-xs font-black text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-lg shrink-0">
-                              {proj.progresso_pct || 0}% concluído
-                            </span>
-                          </div>
-                        </div>
 
-                        {/* Progress Bar */}
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className="h-full bg-purple-600 rounded-full transition-all duration-300"
-                            style={{ width: `${proj.progresso_pct || 0}%` }}
-                          ></div>
-                        </div>
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded-md border font-bold uppercase ${
+                                  t.prioridade === "Alta"
+                                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                                    : t.prioridade === "Média"
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                }`}
+                              >
+                                {t.prioridade}
+                              </span>
 
-                        {/* Remaining Steps Checklist */}
-                        {passosPendentes.length > 0 ? (
-                          <div className="bg-slate-50/80 rounded-lg p-2.5 border border-slate-100 space-y-1.5">
-                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                              Passos a concluir ({passosPendentes.length}):
-                            </span>
-                            <div className="space-y-1">
-                              {passosPendentes.map((step) => (
-                                <div
-                                  key={step.id}
-                                  className="flex items-center justify-between gap-2 text-xs text-slate-700 bg-white px-2.5 py-1.5 rounded border border-slate-200/70"
-                                >
-                                  <div className="flex items-center gap-2 truncate">
-                                    <button
-                                      onClick={() => onToggleProjectStep(proj.id, step)}
-                                      className="w-4 h-4 rounded border border-slate-300 hover:border-emerald-500 flex items-center justify-center cursor-pointer shrink-0"
-                                      title="Concluir passo"
-                                    >
-                                      <Check className="w-2.5 h-2.5 text-transparent hover:text-emerald-600" />
-                                    </button>
-                                    <span className="truncate">{step.titulo}</span>
-                                  </div>
-                                  {step.data_limite && (
-                                    <span className="text-[10px] text-slate-500 shrink-0">
-                                      {formatBrDate(step.data_limite)}
-                                    </span>
-                                  )}
-                                </div>
-                              ))}
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                                {t.categoria}
+                              </span>
                             </div>
+
+                            <h4
+                              className={`text-sm font-semibold leading-snug break-words ${
+                                isDone ? "line-through text-slate-400" : "text-slate-900"
+                              }`}
+                            >
+                              {t.titulo}
+                            </h4>
+
+                            {t.descricao && (
+                              <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                                {t.descricao}
+                              </p>
+                            )}
                           </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
-                            <CheckCheck className="w-3.5 h-3.5" />
-                            <span>Todos os passos cadastrados deste projeto já foram concluídos!</span>
-                          </div>
-                        )}
+                        </div>
+
+                        {/* Right: Edit & Delete Task Actions */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => onEditTask(t)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                            title="Editar esta tarefa"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Deseja excluir a tarefa "${t.titulo}"?`)) {
+                                onDeleteTask(t.id);
+                              }
+                            }}
+                            className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Excluir tarefa"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
+
+                  {/* Project Steps in this bucket */}
+                  {bucket.steps.map((etapa) => {
+                    const rel = formatRelativeDate(etapa.data_vencimento);
+
+                    return (
+                      <div
+                        key={etapa.id}
+                        className="bg-white rounded-xl border border-indigo-100 p-3.5 transition-all shadow-2xs hover:border-indigo-300 flex items-start justify-between gap-3 group"
+                      >
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <button
+                            onClick={() => onToggleProjectStep(etapa.projetoId, etapa.step)}
+                            className="mt-0.5 w-5 h-5 rounded-lg border-2 border-indigo-300 hover:border-emerald-500 hover:bg-emerald-50 bg-white flex items-center justify-center text-transparent hover:text-emerald-600 transition-colors cursor-pointer shrink-0"
+                            title="Marcar etapa do projeto como concluída"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </button>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                                <FolderKanban className="w-3 h-3" />
+                                {etapa.projetoTitulo}
+                              </span>
+
+                              <span
+                                className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold ${rel.badgeClass}`}
+                              >
+                                {rel.text}
+                              </span>
+
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold flex items-center gap-1">
+                                <Layers className="w-3 h-3" />
+                                Etapa
+                              </span>
+                            </div>
+
+                            <h4 className="text-sm font-semibold text-slate-900 leading-snug">
+                              {etapa.titulo}
+                            </h4>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          );
-        })}
-
-        {/* If no pending items match search or criteria */}
-        {totalGeral === 0 && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-xs">
-            <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
-            <h3 className="text-base font-bold text-slate-800">Parabéns! Tudo em dia!</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-              Você não tem nenhuma tarefa pendente nem etapas de projetos aguardando conclusão no momento.
-            </p>
-            <button
-              onClick={() => onNavigateToTab("manual")}
-              className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 cursor-pointer transition-colors shadow-xs"
-            >
-              + Adicionar Nova Tarefa
-            </button>
-          </div>
-        )}
-
-        {totalGeral > 0 &&
-          buckets.every(
-            (b) =>
-              (filtroTipo === "projetos"
-                ? b.projects.length === 0
-                : filtroTipo === "tarefas"
-                ? b.tasks.length === 0
-                : filtroTipo === "etapas"
-                ? b.steps.length === 0
-                : b.tasks.length === 0 && b.steps.length === 0)
-          ) && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center shadow-xs">
-              <p className="text-sm font-semibold text-slate-700">
-                Nenhum item corresponde ao filtro selecionado.
-              </p>
-              <button
-                onClick={() => {
-                  setBusca("");
-                  setCategoriaFiltro("Todas");
-                  setFiltroTipo("todas");
-                }}
-                className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer underline"
-              >
-                Limpar filtros
-              </button>
-            </div>
-          )}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
