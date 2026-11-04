@@ -36,7 +36,7 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({
       setTiposTarefas(
         projeto.tipos_tarefas && projeto.tipos_tarefas.length > 0
           ? projeto.tipos_tarefas
-          : ["Planejamento", "Execução", "Revisão", "Geral"]
+          : Array.from(new Set((projeto.passos || []).map((p) => p.tipo?.trim()).filter(Boolean) as string[]))
       );
     }
   }, [projeto, categorias]);

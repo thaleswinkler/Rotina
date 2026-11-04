@@ -36,6 +36,10 @@ export interface EtapaItemUpcoming {
   step: PassoProjeto;
 }
 
+export type UnifiedUpcomingItem =
+  | { type: "task"; data: Tarefa; dateStr: string; diff: number | null }
+  | { type: "step"; data: EtapaItemUpcoming; dateStr: string; diff: number | null };
+
 interface UpcomingTabProps {
   tarefas: Tarefa[];
   projetos: Projeto[];
@@ -346,13 +350,23 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
     });
   }, [etapasFiltradas]);
 
-  // Combined flat list sorted chronologically
-  const flatChronologicalList = useMemo(() => {
-    type UnifiedItem =
-      | { type: "task"; data: Tarefa; dateStr: string; diff: number | null }
-      | { type: "step"; data: EtapaItemUpcoming; dateStr: string; diff: number | null };
+  // Helper to sort unified items chronologically by date
+  const sortUnifiedItems = (items: UnifiedUpcomingItem[]) => {
+    return [...items].sort((a, b) => {
+      if (!a.dateStr && !b.dateStr) return 0;
+      if (!a.dateStr) return 1;
+      if (!b.dateStr) return -1;
+      // Earlier dates first (e.g., 2026-11-26 comes before 2027-09-01)
+      const cmp = a.dateStr.localeCompare(b.dateStr);
+      if (cmp !== 0) return cmp;
+      if (a.diff !== null && b.diff !== null) return a.diff - b.diff;
+      return 0;
+    });
+  };
 
-    const combined: UnifiedItem[] = [];
+  // Combined flat list sorted strictly chronologically by date
+  const flatChronologicalList = useMemo(() => {
+    const combined: UnifiedUpcomingItem[] = [];
 
     sortedTasks.forEach((t) => {
       combined.push({
@@ -372,146 +386,159 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
       });
     });
 
-    // Sort strictly by date ascending: earlier dates first, null dates at end
-    combined.sort((a, b) => {
-      if (a.diff === null && b.diff === null) return 0;
-      if (a.diff === null) return 1;
-      if (b.diff === null) return -1;
-      return a.diff - b.diff;
-    });
-
-    return combined;
+    return sortUnifiedItems(combined);
   }, [sortedTasks, sortedSteps]);
 
-  // 4. Chronological Buckets (Timeline View)
+  // 4. Chronological Buckets (Timeline View) with UNIFIED items sorted purely by date
   const buckets = useMemo(() => {
-    const overdueTasks: Tarefa[] = [];
-    const todayTasks: Tarefa[] = [];
-    const tomorrowTasks: Tarefa[] = [];
-    const thisWeekTasks: Tarefa[] = [];
-    const laterTasks: Tarefa[] = [];
-    const noDateTasks: Tarefa[] = [];
-
-    const overdueSteps: EtapaItemUpcoming[] = [];
-    const todaySteps: EtapaItemUpcoming[] = [];
-    const tomorrowSteps: EtapaItemUpcoming[] = [];
-    const thisWeekSteps: EtapaItemUpcoming[] = [];
-    const laterSteps: EtapaItemUpcoming[] = [];
-    const noDateSteps: EtapaItemUpcoming[] = [];
+    const overdueItems: UnifiedUpcomingItem[] = [];
+    const todayItems: UnifiedUpcomingItem[] = [];
+    const tomorrowItems: UnifiedUpcomingItem[] = [];
+    const thisWeekItems: UnifiedUpcomingItem[] = [];
+    const laterItems: UnifiedUpcomingItem[] = [];
+    const noDateItems: UnifiedUpcomingItem[] = [];
 
     sortedTasks.forEach((t) => {
       const diff = getDaysDiff(t.data_vencimento);
+      const item: UnifiedUpcomingItem = {
+        type: "task",
+        data: t,
+        dateStr: t.data_vencimento || "",
+        diff,
+      };
       if (diff === null) {
-        noDateTasks.push(t);
+        noDateItems.push(item);
       } else if (diff < 0) {
-        overdueTasks.push(t);
+        overdueItems.push(item);
       } else if (diff === 0) {
-        todayTasks.push(t);
+        todayItems.push(item);
       } else if (diff === 1) {
-        tomorrowTasks.push(t);
+        tomorrowItems.push(item);
       } else if (diff <= 7) {
-        thisWeekTasks.push(t);
+        thisWeekItems.push(item);
       } else {
-        laterTasks.push(t);
+        laterItems.push(item);
       }
     });
 
     sortedSteps.forEach((s) => {
       const diff = getDaysDiff(s.data_vencimento);
+      const item: UnifiedUpcomingItem = {
+        type: "step",
+        data: s,
+        dateStr: s.data_vencimento || "",
+        diff,
+      };
       if (diff === null) {
-        noDateSteps.push(s);
+        noDateItems.push(item);
       } else if (diff < 0) {
-        overdueSteps.push(s);
+        overdueItems.push(item);
       } else if (diff === 0) {
-        todaySteps.push(s);
+        todayItems.push(item);
       } else if (diff === 1) {
-        tomorrowSteps.push(s);
+        tomorrowItems.push(item);
       } else if (diff <= 7) {
-        thisWeekSteps.push(s);
+        thisWeekItems.push(item);
       } else {
-        laterSteps.push(s);
+        laterItems.push(item);
       }
     });
 
+    const createBucket = (
+      id: string,
+      title: string,
+      subtitle: string,
+      icon: any,
+      color: string,
+      badgeBg: string,
+      containerBg: string,
+      headerBorder: string,
+      items: UnifiedUpcomingItem[]
+    ) => {
+      const sorted = sortUnifiedItems(items);
+      return {
+        id,
+        title,
+        subtitle,
+        icon,
+        color,
+        badgeBg,
+        containerBg,
+        headerBorder,
+        items: sorted,
+        total: sorted.length,
+        taskCount: sorted.filter((i) => i.type === "task").length,
+        stepCount: sorted.filter((i) => i.type === "step").length,
+      };
+    };
+
     return [
-      {
-        id: "overdue",
-        title: "Vencidas / Atrasadas",
-        subtitle: "Atenção: requerem ação imediata",
-        icon: AlertTriangle,
-        color: "text-rose-700",
-        badgeBg: "bg-rose-100 text-rose-800 border-rose-200 font-bold",
-        containerBg: "bg-rose-50/40 border-rose-200",
-        headerBorder: "border-rose-200",
-        tasks: overdueTasks,
-        steps: overdueSteps,
-        total: overdueTasks.length + overdueSteps.length,
-      },
-      {
-        id: "today",
-        title: "Vencem Hoje",
-        subtitle: "Prioridade para o dia de hoje",
-        icon: Flame,
-        color: "text-amber-700",
-        badgeBg: "bg-amber-100 text-amber-800 border-amber-200 font-bold",
-        containerBg: "bg-amber-50/30 border-amber-200",
-        headerBorder: "border-amber-200",
-        tasks: todayTasks,
-        steps: todaySteps,
-        total: todayTasks.length + todaySteps.length,
-      },
-      {
-        id: "tomorrow",
-        title: "Vencem Amanhã",
-        subtitle: "Programação para o dia seguinte",
-        icon: CalendarClock,
-        color: "text-blue-700",
-        badgeBg: "bg-blue-100 text-blue-800 border-blue-200 font-semibold",
-        containerBg: "bg-blue-50/20 border-blue-200",
-        headerBorder: "border-blue-200",
-        tasks: tomorrowTasks,
-        steps: tomorrowSteps,
-        total: tomorrowTasks.length + tomorrowSteps.length,
-      },
-      {
-        id: "this_week",
-        title: "Esta Semana (Próximos 7 Dias)",
-        subtitle: "Vencimentos no radar desta semana",
-        icon: Calendar,
-        color: "text-indigo-700",
-        badgeBg: "bg-indigo-100 text-indigo-800 border-indigo-200 font-medium",
-        containerBg: "bg-white border-slate-200",
-        headerBorder: "border-slate-100",
-        tasks: thisWeekTasks,
-        steps: thisWeekSteps,
-        total: thisWeekTasks.length + thisWeekSteps.length,
-      },
-      {
-        id: "later",
-        title: "Mais Adiante (Futuras)",
-        subtitle: "Prazos programados além de 7 dias",
-        icon: Clock,
-        color: "text-slate-700",
-        badgeBg: "bg-slate-100 text-slate-800 border-slate-200",
-        containerBg: "bg-white border-slate-200",
-        headerBorder: "border-slate-100",
-        tasks: laterTasks,
-        steps: laterSteps,
-        total: laterTasks.length + laterSteps.length,
-      },
-      {
-        id: "no_date",
-        title: "Sem Data Definida",
-        subtitle: "Tarefas e etapas sem prazo fixado",
-        icon: ListTodo,
-        color: "text-slate-500",
-        badgeBg: "bg-slate-100 text-slate-700 border-slate-200",
-        containerBg: "bg-white border-slate-200",
-        headerBorder: "border-slate-100",
-        tasks: noDateTasks,
-        steps: noDateSteps,
-        total: noDateTasks.length + noDateSteps.length,
-      },
+      createBucket(
+        "overdue",
+        "Vencidas / Atrasadas",
+        "Atenção: requerem ação imediata",
+        AlertTriangle,
+        "text-rose-700",
+        "bg-rose-100 text-rose-800 border-rose-200 font-bold",
+        "bg-rose-50/40 border-rose-200",
+        "border-rose-200",
+        overdueItems
+      ),
+      createBucket(
+        "today",
+        "Vencem Hoje",
+        "Prioridade para o dia de hoje",
+        Flame,
+        "text-amber-700",
+        "bg-amber-100 text-amber-800 border-amber-200 font-bold",
+        "bg-amber-50/30 border-amber-200",
+        "border-amber-200",
+        todayItems
+      ),
+      createBucket(
+        "tomorrow",
+        "Vencem Amanhã",
+        "Programação para o dia seguinte",
+        CalendarClock,
+        "text-blue-700",
+        "bg-blue-100 text-blue-800 border-blue-200 font-semibold",
+        "bg-blue-50/20 border-blue-200",
+        "border-blue-200",
+        tomorrowItems
+      ),
+      createBucket(
+        "this_week",
+        "Esta Semana (Próximos 7 Dias)",
+        "Vencimentos no radar desta semana",
+        Calendar,
+        "text-indigo-700",
+        "bg-indigo-100 text-indigo-800 border-indigo-200 font-medium",
+        "bg-white border-slate-200",
+        "border-slate-100",
+        thisWeekItems
+      ),
+      createBucket(
+        "later",
+        "Mais Adiante (Futuras)",
+        "Prazos programados além de 7 dias",
+        Clock,
+        "text-slate-700",
+        "bg-slate-100 text-slate-800 border-slate-200",
+        "bg-white border-slate-200",
+        "border-slate-100",
+        laterItems
+      ),
+      createBucket(
+        "no_date",
+        "Sem Data Definida",
+        "Tarefas e etapas sem prazo fixado",
+        ListTodo,
+        "text-slate-500",
+        "bg-slate-100 text-slate-700 border-slate-200",
+        "bg-white border-slate-200",
+        "border-slate-100",
+        noDateItems
+      ),
     ];
   }, [sortedTasks, sortedSteps]);
 
@@ -1192,154 +1219,155 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
                   </div>
 
                   <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400">
-                    {bucket.tasks.length > 0 && <span>{bucket.tasks.length} tarefa(s)</span>}
-                    {bucket.tasks.length > 0 && bucket.steps.length > 0 && <span>•</span>}
-                    {bucket.steps.length > 0 && <span>{bucket.steps.length} etapa(s) de projeto</span>}
+                    {bucket.taskCount > 0 && <span>{bucket.taskCount} tarefa(s)</span>}
+                    {bucket.taskCount > 0 && bucket.stepCount > 0 && <span>•</span>}
+                    {bucket.stepCount > 0 && <span>{bucket.stepCount} etapa(s) de projeto</span>}
                   </div>
                 </div>
 
-                {/* Items in this bucket */}
+                {/* Items in this bucket in STRICT CHRONOLOGICAL ORDER */}
                 <div className="p-3.5 sm:p-4 space-y-2.5">
-                  {/* Tasks */}
-                  {bucket.tasks.map((t) => {
-                    const rel = formatRelativeDate(t.data_vencimento);
-                    const isDone = t.status === "Concluída";
+                  {bucket.items.map((item) => {
+                    if (item.type === "task") {
+                      const t = item.data;
+                      const rel = formatRelativeDate(t.data_vencimento);
+                      const isDone = t.status === "Concluída";
 
-                    return (
-                      <div
-                        key={t.id}
-                        className={`bg-white rounded-xl border p-3.5 transition-all shadow-2xs hover:shadow-xs flex items-start justify-between gap-3 group ${
-                          isDone
-                            ? "bg-slate-50/70 border-slate-200 text-slate-400"
-                            : t.data_vencimento && getDaysDiff(t.data_vencimento)! < 0
-                            ? "border-rose-200/90 hover:border-rose-300"
-                            : "border-slate-200 hover:border-indigo-300"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                          {/* Checkbox */}
-                          <button
-                            onClick={() => onToggleTaskStatus(t.id, t.status)}
-                            className={`mt-0.5 w-5 h-5 rounded-lg border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
-                              isDone
-                                ? "bg-emerald-600 border-emerald-600 text-white shadow-xs"
-                                : "border-slate-300 hover:border-indigo-600 bg-white hover:bg-indigo-50/50"
-                            }`}
-                            title={isDone ? "Marcar como pendente" : "Marcar como concluída"}
-                          >
-                            {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                          </button>
+                      return (
+                        <div
+                          key={`task_${t.id}`}
+                          className={`bg-white rounded-xl border p-3.5 transition-all shadow-2xs hover:shadow-xs flex items-start justify-between gap-3 group ${
+                            isDone
+                              ? "bg-slate-50/70 border-slate-200 text-slate-400"
+                              : t.data_vencimento && getDaysDiff(t.data_vencimento)! < 0
+                              ? "border-rose-200/90 hover:border-rose-300"
+                              : "border-slate-200 hover:border-indigo-300"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            {/* Checkbox */}
+                            <button
+                              onClick={() => onToggleTaskStatus(t.id, t.status)}
+                              className={`mt-0.5 w-5 h-5 rounded-lg border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                                isDone
+                                  ? "bg-emerald-600 border-emerald-600 text-white shadow-xs"
+                                  : "border-slate-300 hover:border-indigo-600 bg-white hover:bg-indigo-50/50"
+                              }`}
+                              title={isDone ? "Marcar como pendente" : "Marcar como concluída"}
+                            >
+                              {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            </button>
 
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                              <span
-                                className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold ${rel.badgeClass}`}
-                              >
-                                {rel.text}
-                              </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold ${rel.badgeClass}`}
+                                >
+                                  {rel.text}
+                                </span>
 
-                              <span
-                                className={`text-[10px] px-1.5 py-0.5 rounded-md border font-bold uppercase ${
-                                  t.prioridade === "Alta"
-                                    ? "bg-rose-50 text-rose-700 border-rose-200"
-                                    : t.prioridade === "Média"
-                                    ? "bg-amber-50 text-amber-700 border-amber-200"
-                                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                <span
+                                  className={`text-[10px] px-1.5 py-0.5 rounded-md border font-bold uppercase ${
+                                    t.prioridade === "Alta"
+                                      ? "bg-rose-50 text-rose-700 border-rose-200"
+                                      : t.prioridade === "Média"
+                                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                                      : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  }`}
+                                >
+                                  {t.prioridade}
+                                </span>
+
+                                <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                                  {t.categoria}
+                                </span>
+                              </div>
+
+                              <h4
+                                className={`text-sm font-semibold leading-snug break-words ${
+                                  isDone ? "line-through text-slate-400" : "text-slate-900"
                                 }`}
                               >
-                                {t.prioridade}
-                              </span>
+                                {t.titulo}
+                              </h4>
 
-                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
-                                {t.categoria}
-                              </span>
+                              {t.descricao && (
+                                <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                                  {t.descricao}
+                                </p>
+                              )}
                             </div>
+                          </div>
 
-                            <h4
-                              className={`text-sm font-semibold leading-snug break-words ${
-                                isDone ? "line-through text-slate-400" : "text-slate-900"
-                              }`}
+                          {/* Right: Edit & Delete Task Actions */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => onEditTask(t)}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                              title="Editar esta tarefa"
                             >
-                              {t.titulo}
-                            </h4>
-
-                            {t.descricao && (
-                              <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                                {t.descricao}
-                              </p>
-                            )}
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Deseja excluir a tarefa "${t.titulo}"?`)) {
+                                  onDeleteTask(t.id);
+                                }
+                              }}
+                              className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Excluir tarefa"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
+                      );
+                    } else {
+                      // Project Step
+                      const etapa = item.data;
+                      const rel = formatRelativeDate(etapa.data_vencimento);
 
-                        {/* Right: Edit & Delete Task Actions */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => onEditTask(t)}
-                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                            title="Editar esta tarefa"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`Deseja excluir a tarefa "${t.titulo}"?`)) {
-                                onDeleteTask(t.id);
-                              }
-                            }}
-                            className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Excluir tarefa"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      return (
+                        <div
+                          key={`step_${etapa.id}`}
+                          className="bg-white rounded-xl border border-indigo-100 p-3.5 transition-all shadow-2xs hover:border-indigo-300 flex items-start justify-between gap-3 group"
+                        >
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <button
+                              onClick={() => onToggleProjectStep(etapa.projetoId, etapa.step)}
+                              className="mt-0.5 w-5 h-5 rounded-lg border-2 border-indigo-300 hover:border-emerald-500 hover:bg-emerald-50 bg-white flex items-center justify-center text-transparent hover:text-emerald-600 transition-colors cursor-pointer shrink-0"
+                              title="Marcar etapa do projeto como concluída"
+                            >
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            </button>
 
-                  {/* Project Steps in this bucket */}
-                  {bucket.steps.map((etapa) => {
-                    const rel = formatRelativeDate(etapa.data_vencimento);
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                                  <FolderKanban className="w-3 h-3" />
+                                  {etapa.projetoTitulo}
+                                </span>
 
-                    return (
-                      <div
-                        key={etapa.id}
-                        className="bg-white rounded-xl border border-indigo-100 p-3.5 transition-all shadow-2xs hover:border-indigo-300 flex items-start justify-between gap-3 group"
-                      >
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                          <button
-                            onClick={() => onToggleProjectStep(etapa.projetoId, etapa.step)}
-                            className="mt-0.5 w-5 h-5 rounded-lg border-2 border-indigo-300 hover:border-emerald-500 hover:bg-emerald-50 bg-white flex items-center justify-center text-transparent hover:text-emerald-600 transition-colors cursor-pointer shrink-0"
-                            title="Marcar etapa do projeto como concluída"
-                          >
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
-                          </button>
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold ${rel.badgeClass}`}
+                                >
+                                  {rel.text}
+                                </span>
 
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
-                                <FolderKanban className="w-3 h-3" />
-                                {etapa.projetoTitulo}
-                              </span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold flex items-center gap-1">
+                                  <Layers className="w-3 h-3" />
+                                  Etapa
+                                </span>
+                              </div>
 
-                              <span
-                                className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold ${rel.badgeClass}`}
-                              >
-                                {rel.text}
-                              </span>
-
-                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold flex items-center gap-1">
-                                <Layers className="w-3 h-3" />
-                                Etapa
-                              </span>
+                              <h4 className="text-sm font-semibold text-slate-900 leading-snug">
+                                {etapa.titulo}
+                              </h4>
                             </div>
-
-                            <h4 className="text-sm font-semibold text-slate-900 leading-snug">
-                              {etapa.titulo}
-                            </h4>
                           </div>
                         </div>
-                      </div>
-                    );
+                      );
+                    }
                   })}
                 </div>
               </div>

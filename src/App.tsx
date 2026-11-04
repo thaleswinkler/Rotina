@@ -297,26 +297,18 @@ export default function App() {
   };
 
   const handleToggleItemMercado = async (id: string | number, currentComprado: boolean) => {
-    const novoEstado = !currentComprado;
-    setMercadoItens((prev) =>
-      prev.map((i) => (String(i.id) === String(id) ? { ...i, comprado: novoEstado } : i))
-    );
+    // When giving baixa: remove item immediately to keep list clean without pollution
+    setMercadoItens((prev) => prev.filter((i) => String(i.id) !== String(id)));
 
-    fetch(`/api/mercado/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ comprado: novoEstado }),
-    }).catch(() => {});
+    fetch(`/api/mercado/${id}`, { method: "DELETE" }).catch(() => {});
 
     try {
-      await updateItemMercadoFirestore(id, { comprado: novoEstado });
+      await deleteItemMercadoFirestore(id);
     } catch (err) {
-      console.warn("Firestore updateItemMercado skipped:", err);
+      console.warn("Firestore deleteItemMercado skipped:", err);
     }
 
-    if (novoEstado) {
-      showToast("🛒 Item marcado como comprado!", "success");
-    }
+    showToast("🛒 Baixa dada! Item removido da lista.", "success");
   };
 
   const handleDeleteItemMercado = async (id: string | number) => {

@@ -530,7 +530,7 @@ app.post("/api/projects", (req, res) => {
     status: "Em Andamento",
     criado_em: new Date().toISOString(),
     passos: passosCriados,
-    tipos_tarefas: Array.isArray(tipos_tarefas) ? tipos_tarefas : ["Planejamento", "Execução", "Revisão", "Geral"],
+    tipos_tarefas: Array.isArray(tipos_tarefas) ? tipos_tarefas : [],
   };
 
   if (!db.projetos) db.projetos = [];

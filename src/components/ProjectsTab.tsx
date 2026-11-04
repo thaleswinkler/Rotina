@@ -89,8 +89,10 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
     d.setDate(d.getDate() + 30);
     return d.toISOString().split("T")[0];
   });
+  const [fasesPersonalizadas, setFasesPersonalizadas] = useState<string[]>([]);
+  const [novaFaseInput, setNovaFaseInput] = useState("");
   const [novoPassoInput, setNovoPassoInput] = useState("");
-  const [novoPassoTipo, setNovoPassoTipo] = useState("Planejamento");
+  const [novoPassoTipo, setNovoPassoTipo] = useState("");
   const [novoPassoPrazo, setNovoPassoPrazo] = useState("");
   const [passosTemp, setPassosTemp] = useState<
     Array<{ titulo: string; tipo: string; data_limite?: string }>
@@ -125,14 +127,37 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
     projetosFiltrados[0] ||
     null;
 
+  // Add custom phase to new project
+  const handleAddFase = () => {
+    const f = novaFaseInput.trim();
+    if (!f) return;
+    if (!fasesPersonalizadas.includes(f)) {
+      const updated = [...fasesPersonalizadas, f];
+      setFasesPersonalizadas(updated);
+      if (!novoPassoTipo) {
+        setNovoPassoTipo(f);
+      }
+    }
+    setNovaFaseInput("");
+  };
+
+  const handleRemoveFase = (faseToRemove: string) => {
+    const updated = fasesPersonalizadas.filter((f) => f !== faseToRemove);
+    setFasesPersonalizadas(updated);
+    if (novoPassoTipo === faseToRemove) {
+      setNovoPassoTipo(updated[0] || "");
+    }
+  };
+
   // Add step to temp list in create form
   const handleAddPassoTemp = () => {
     if (!novoPassoInput.trim()) return;
+    const finalTipo = novoPassoTipo || fasesPersonalizadas[0] || "Geral";
     setPassosTemp((prev) => [
       ...prev,
       {
         titulo: novoPassoInput.trim(),
-        tipo: novoPassoTipo || "Geral",
+        tipo: finalTipo,
         data_limite: novoPassoPrazo || "",
       },
     ]);
@@ -160,14 +185,16 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
       if (!res.ok) throw new Error("Falha ao consultar Gemini.");
       const data = await res.json();
       if (Array.isArray(data.passos) && data.passos.length > 0) {
-        const stepTypes = ["Planejamento", "Execução", "Execução", "Revisão", "Lançamento & Marketing"];
+        const stepTypes = fasesPersonalizadas.length > 0
+          ? fasesPersonalizadas
+          : ["Planejamento", "Execução", "Revisão"];
         const stepsObjs = data.passos.map((p: string, idx: number) => ({
           titulo: p,
           tipo: stepTypes[idx % stepTypes.length] || "Geral",
           data_limite: "",
         }));
         setPassosTemp((prev) => [...prev, ...stepsObjs]);
-        onShowToast(`✨ Gemini sugeriu ${data.passos.length} etapas categorizadas!`, "success");
+        onShowToast(`✨ Gemini sugeriu ${data.passos.length} etapas!`, "success");
       }
     } catch (err: any) {
       alert(err.message || "Erro ao sugerir etapas com IA.");
@@ -185,16 +212,18 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
     try {
       const passosFinal = [...passosTemp];
       if (novoPassoInput.trim()) {
+        const finalTipo = novoPassoTipo || fasesPersonalizadas[0] || "Geral";
         passosFinal.push({
           titulo: novoPassoInput.trim(),
-          tipo: novoPassoTipo || "Geral",
+          tipo: finalTipo,
           data_limite: novoPassoPrazo || "",
         });
       }
 
-      // Collect distinct types
+      // Collect ONLY the types explicitly chosen or added by the user (no forced defaults)
+      const stepTypes = passosFinal.map((p) => p.tipo).filter(Boolean);
       const distinctTypes = Array.from(
-        new Set(["Planejamento", "Execução", "Revisão", "Geral", ...passosFinal.map((p) => p.tipo)])
+        new Set([...fasesPersonalizadas, ...stepTypes])
       );
 
       const passosFormatados: PassoProjeto[] = passosFinal.map((p, idx) => ({
@@ -256,6 +285,8 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
       setNovoTitulo("");
       setNovaDescricao("");
       setPassosTemp([]);
+      setFasesPersonalizadas([]);
+      setNovaFaseInput("");
       setNovoPassoInput("");
       setNovoPassoPrazo("");
       setShowNovoForm(false);
@@ -479,7 +510,7 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
     onSetProjetos?.((prev) =>
       prev.map((p) => {
         if (String(p.id) !== String(projectId)) return p;
-        const currentTypes = p.tipos_tarefas || ["Planejamento", "Execução", "Revisão", "Geral"];
+        const currentTypes = Array.isArray(p.tipos_tarefas) ? p.tipos_tarefas : [];
         if (currentTypes.includes(trimmed)) return p;
         return { ...p, tipos_tarefas: [...currentTypes, trimmed] };
       })
@@ -488,7 +519,7 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
     try {
       const proj = projetos.find((p) => String(p.id) === String(projectId));
       if (proj) {
-        const currentTypes = proj.tipos_tarefas || ["Planejamento", "Execução", "Revisão", "Geral"];
+        const currentTypes = Array.isArray(proj.tipos_tarefas) ? proj.tipos_tarefas : [];
         if (!currentTypes.includes(trimmed)) {
           const updated = [...currentTypes, trimmed];
           await updateProjetoFirestore(projectId, { tipos_tarefas: updated });
@@ -685,12 +716,77 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
               </div>
             </div>
 
+            {/* Fases do Projeto (Personalize as fases que desejar) */}
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label className="text-xs font-bold uppercase text-slate-700 flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-indigo-600" />
+                  Fases do Projeto (Defina as fases que desejar)
+                </label>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  {fasesPersonalizadas.length === 0
+                    ? "Nenhuma fase criada (adicione abaixo)"
+                    : `${fasesPersonalizadas.length} fase(s) configurada(s)`}
+                </span>
+              </div>
+
+              {/* Input to add a new custom phase */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Nome da fase (ex: Fase 1, Design, Produção, Entrega...)"
+                  value={novaFaseInput}
+                  onChange={(e) => setNovaFaseInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddFase();
+                    }
+                  }}
+                  className="flex-1 px-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 text-slate-900 placeholder:text-slate-400"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddFase}
+                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold cursor-pointer shrink-0 transition-colors shadow-2xs"
+                >
+                  + Adicionar Fase
+                </button>
+              </div>
+
+              {/* Chips of added phases */}
+              {fasesPersonalizadas.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  {fasesPersonalizadas.map((fase) => (
+                    <span
+                      key={fase}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-white text-indigo-700 border border-indigo-200 shadow-2xs"
+                    >
+                      <span>{fase}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFase(fase)}
+                        className="text-indigo-400 hover:text-rose-600 ml-0.5 cursor-pointer text-xs"
+                        title="Remover esta fase"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-400">
+                  💡 Não criamos mais fases automáticas (Planejamento, Execução, etc.). Adicione as fases que você quer para este projeto.
+                </p>
+              )}
+            </div>
+
             {/* Passos e Tipos de Tarefa */}
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <label className="text-xs font-bold uppercase text-slate-700 flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-indigo-600" />
-                  Passos & Tipos de Tarefas ({passosTemp.length})
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  Passos / Etapas do Projeto ({passosTemp.length})
                 </label>
 
                 <button
@@ -719,22 +815,33 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                       handleAddPassoTemp();
                     }
                   }}
-                  className="flex-1 px-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900"
+                  className="flex-1 px-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 placeholder:text-slate-400"
                 />
 
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {/* Tipo de Tarefa */}
+                  {/* Tipo de Tarefa / Fase */}
                   <select
-                    value={novoPassoTipo}
+                    value={novoPassoTipo || (fasesPersonalizadas[0] || "Geral")}
                     onChange={(e) => setNovoPassoTipo(e.target.value)}
                     className="px-2.5 py-2 text-xs bg-white border border-slate-200 rounded-xl text-slate-800 font-semibold focus:outline-hidden cursor-pointer"
-                    title="Selecione o tipo de tarefa"
+                    title="Selecione a fase deste passo"
                   >
-                    {PRESET_TIPOS.map((tp) => (
-                      <option key={tp} value={tp}>
-                        {tp}
-                      </option>
-                    ))}
+                    {fasesPersonalizadas.length > 0 ? (
+                      fasesPersonalizadas.map((tp) => (
+                        <option key={tp} value={tp}>
+                          Fase: {tp}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="Geral">Geral</option>
+                    )}
+                    <optgroup label="Outras Fases Sugeridas">
+                      {PRESET_TIPOS.filter((p) => !fasesPersonalizadas.includes(p)).map((tp) => (
+                        <option key={tp} value={tp}>
+                          {tp}
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
 
                   <div
@@ -980,7 +1087,10 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
             const passosConcluidos = proj.passos?.filter((p) => p.concluido).length || 0;
 
             // Group steps by type
-            const definedTypes = proj.tipos_tarefas || ["Planejamento", "Execução", "Revisão", "Geral"];
+            const definedTypes =
+              Array.isArray(proj.tipos_tarefas) && proj.tipos_tarefas.length > 0
+                ? proj.tipos_tarefas
+                : Array.from(new Set((proj.passos || []).map((s) => s.tipo?.trim()).filter(Boolean) as string[]));
             const stepsByType: { [t: string]: PassoProjeto[] } = {};
             definedTypes.forEach((t) => (stepsByType[t] = []));
             (proj.passos || []).forEach((s) => {

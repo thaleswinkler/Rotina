@@ -189,7 +189,10 @@ export const ProjectMindMap: React.FC<ProjectMindMapProps> = ({
   // Group steps by their "tipo"
   const groupedSteps = useMemo(() => {
     const passos = projeto.passos || [];
-    const definedTypes = projeto.tipos_tarefas || ["Planejamento", "Execução", "Revisão", "Geral"];
+    const definedTypes =
+      Array.isArray(projeto.tipos_tarefas) && projeto.tipos_tarefas.length > 0
+        ? projeto.tipos_tarefas
+        : Array.from(new Set(passos.map((p) => p.tipo?.trim()).filter(Boolean) as string[]));
 
     const groups: { [tipo: string]: PassoProjeto[] } = {};
 

@@ -466,9 +466,12 @@ export const MercadoTab: React.FC<MercadoTabProps> = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between px-1">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                   Itens a Comprar ({itensFiltrados.filter((i) => !i.comprado).length})
                 </h4>
+                <span className="text-[11px] text-slate-400">
+                  Toque no item para dar baixa e remover
+                </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -480,19 +483,20 @@ export const MercadoTab: React.FC<MercadoTabProps> = ({
                     return (
                       <div
                         key={item.id}
-                        className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-2xs hover:border-indigo-300 hover:shadow-xs transition-all flex items-center justify-between gap-3 group"
+                        className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-2xs hover:border-emerald-400 hover:shadow-xs transition-all flex items-center justify-between gap-3 group"
                       >
-                        {/* Checkbox and Title */}
+                        {/* Checkbox and Title (Clicking gives baixa and removes item) */}
                         <div
                           onClick={() => onToggleItem(item.id, item.comprado)}
                           className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                          title="Clique para dar baixa e remover este item da lista"
                         >
-                          <div className="w-5 h-5 rounded-lg border-2 border-slate-300 group-hover:border-indigo-600 flex items-center justify-center text-transparent transition-colors shrink-0">
+                          <div className="w-5 h-5 rounded-lg border-2 border-slate-300 group-hover:border-emerald-600 group-hover:bg-emerald-50 flex items-center justify-center text-transparent group-hover:text-emerald-600 transition-colors shrink-0">
                             <Check className="w-3.5 h-3.5 stroke-[3]" />
                           </div>
 
                           <div className="min-w-0">
-                            <span className="text-sm font-bold text-slate-900 block truncate">
+                            <span className="text-sm font-bold text-slate-900 block truncate group-hover:text-emerald-700 transition-colors">
                               {item.nome}
                             </span>
                             <div className="flex items-center gap-2 mt-0.5">

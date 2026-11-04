@@ -318,7 +318,7 @@ export async function addProjetoFirestore(
     status: projeto.status || "Em Andamento",
     data_limite: projeto.data_limite || "",
     passos: projeto.passos || [],
-    tipos_tarefas: projeto.tipos_tarefas || ["Planejamento", "Execução", "Revisão", "Geral"],
+    tipos_tarefas: projeto.tipos_tarefas || [],
     id: newDoc.id,
     userId: userId || auth.currentUser?.uid || "anonymous",
     criado_em: projeto.criado_em || new Date().toISOString(),
