@@ -6,6 +6,7 @@ import {
   Code2,
   FolderKanban,
   CalendarClock,
+  CalendarDays,
   CheckCircle2,
   Plus,
   ShoppingCart,
@@ -20,6 +21,7 @@ import { PythonCodeTab } from "./components/PythonCodeTab";
 import { EditTaskModal } from "./components/EditTaskModal";
 import { ProjectsTab } from "./components/ProjectsTab";
 import { UpcomingTab } from "./components/UpcomingTab";
+import { CalendarTab } from "./components/CalendarTab";
 import { SyncAndBackupModal } from "./components/SyncAndBackupModal";
 import { MercadoTab } from "./components/MercadoTab";
 import {
@@ -61,9 +63,9 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Tabs: 'mercado' | 'em_breve' | 'projetos' | 'manual' | 'voz' | 'python'
+  // Tabs: 'mercado' | 'em_breve' | 'calendario' | 'projetos' | 'manual' | 'voz' | 'python'
   const [activeTab, setActiveTab] = useState<
-    "mercado" | "em_breve" | "projetos" | "manual" | "voz" | "python"
+    "mercado" | "em_breve" | "calendario" | "projetos" | "manual" | "voz" | "python"
   >("mercado");
 
   // Filters for tasks
@@ -646,6 +648,18 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab("calendario")}
+              className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
+                activeTab === "calendario"
+                  ? "border-indigo-600 text-indigo-700 bg-white shadow-2xs font-bold"
+                  : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+              }`}
+            >
+              <CalendarDays className="w-4 h-4 text-indigo-600" />
+              <span>🗓️ Calendário</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab("projetos")}
               className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
                 activeTab === "projetos"
@@ -737,6 +751,7 @@ export default function App() {
             onCreateTask={handleCreateTask}
             onNavigateToTab={(tab) => {
               if (tab === "projetos") setActiveTab("projetos");
+              else if (tab === "calendario") setActiveTab("calendario");
               else if (tab === "manual") setActiveTab("manual");
               else if (tab === "voz") setActiveTab("voz");
             }}
@@ -744,7 +759,30 @@ export default function App() {
           />
         )}
 
-        {/* Tab 2: Projects & Steps */}
+        {/* Tab 2: Calendário (Mês & Semana) */}
+        {activeTab === "calendario" && (
+          <CalendarTab
+            tarefas={tarefas}
+            projetos={projetos}
+            categorias={categorias}
+            onToggleTaskStatus={handleToggleStatus}
+            onToggleProjectStep={handleToggleProjectStep}
+            onEditTask={(tarefa) => {
+              setEditingTask(tarefa);
+              setIsEditModalOpen(true);
+            }}
+            onDeleteTask={handleDeleteTask}
+            onCreateTask={handleCreateTask}
+            onShowToast={showToast}
+            onNavigateToTab={(tab) => {
+              if (tab === "projetos") setActiveTab("projetos");
+              else if (tab === "em_breve") setActiveTab("em_breve");
+              else if (tab === "manual") setActiveTab("manual");
+            }}
+          />
+        )}
+
+        {/* Tab 3: Projects & Steps */}
         {activeTab === "projetos" && (
           <ProjectsTab
             projetos={projetos}
