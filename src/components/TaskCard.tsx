@@ -110,18 +110,32 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               }`}
             >
               <Calendar className="w-3 h-3" />
-              <span>{formatarData(tarefa.data_vencimento)}</span>
+              <span>
+                {tarefa.data_inicio && tarefa.data_inicio !== tarefa.data_vencimento
+                  ? `${formatarData(tarefa.data_inicio)} → ${formatarData(tarefa.data_vencimento)}`
+                  : formatarData(tarefa.data_vencimento)}
+              </span>
               {isVencida && (
-                <span className="text-[10px] uppercase tracking-wider bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded-sm">
+                <span className="text-[10px] uppercase tracking-wider bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded-sm font-semibold">
                   Atrasada
                 </span>
               )}
               {isHoje && !isConcluida && (
-                <span className="text-[10px] uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded-sm">
+                <span className="text-[10px] uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded-sm font-semibold">
                   Hoje
                 </span>
               )}
             </span>
+
+            {tarefa.hora_inicio && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 font-mono tabular-nums">
+                <Clock className="w-3 h-3 text-slate-500" />
+                <span>
+                  {tarefa.hora_inicio}
+                  {tarefa.hora_fim ? ` - ${tarefa.hora_fim}` : ""}
+                </span>
+              </span>
+            )}
           </div>
 
           {/* Title */}

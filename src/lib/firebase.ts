@@ -263,7 +263,10 @@ export async function addTarefaFirestore(
     titulo: string;
     categoria: string;
     prioridade: Prioridade;
+    data_inicio?: string;
     data_vencimento: string;
+    hora_inicio?: string;
+    hora_fim?: string;
     descricao?: string;
     status?: StatusTarefa;
     criado_em?: string;

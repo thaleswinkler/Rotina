@@ -26,7 +26,10 @@ interface Tarefa {
   descricao: string;
   categoria: string;
   prioridade: "Alta" | "Média" | "Baixa";
+  data_inicio?: string; // YYYY-MM-DD
   data_vencimento: string; // YYYY-MM-DD
+  hora_inicio?: string; // HH:mm
+  hora_fim?: string; // HH:mm
   status: "Pendente" | "Concluída";
   criado_em: string;
 }
@@ -37,7 +40,10 @@ interface PassoProjeto {
   titulo: string;
   concluido: boolean;
   ordem: number;
+  data_inicio?: string;
   data_limite?: string;
+  hora_inicio?: string;
+  hora_fim?: string;
   tipo?: string;
 }
 
@@ -291,7 +297,7 @@ app.get("/api/tasks", (req, res) => {
 
 // Create task
 app.post("/api/tasks", (req, res) => {
-  const { titulo, descricao, categoria, prioridade, data_vencimento } = req.body;
+  const { titulo, descricao, categoria, prioridade, data_inicio, data_vencimento, hora_inicio, hora_fim } = req.body;
   if (!titulo || !titulo.trim()) {
     return res.status(400).json({ error: "O título da tarefa é obrigatório." });
   }
@@ -300,13 +306,19 @@ app.post("/api/tasks", (req, res) => {
   const validPriorities: ("Alta" | "Média" | "Baixa")[] = ["Alta", "Média", "Baixa"];
   const finalPriority = validPriorities.includes(prioridade) ? prioridade : "Média";
 
+  const dueDate = data_vencimento || data_inicio || getTodayString();
+  const startDate = data_inicio || dueDate;
+
   const novaTarefa: Tarefa = {
     id: db.nextId++,
     titulo: titulo.trim(),
     descricao: (descricao || "").trim(),
     categoria: categoria || db.categorias[0] || "Pessoal",
     prioridade: finalPriority,
-    data_vencimento: data_vencimento || getTodayString(),
+    data_inicio: startDate,
+    data_vencimento: dueDate,
+    hora_inicio: hora_inicio ? hora_inicio.trim() : undefined,
+    hora_fim: hora_fim ? hora_fim.trim() : undefined,
     status: "Pendente",
     criado_em: new Date().toISOString(),
   };
@@ -328,7 +340,7 @@ app.put("/api/tasks/:id", (req, res) => {
   }
 
   const existing = db.tarefas[index];
-  const { titulo, descricao, categoria, prioridade, data_vencimento, status } = req.body;
+  const { titulo, descricao, categoria, prioridade, data_inicio, data_vencimento, hora_inicio, hora_fim, status } = req.body;
 
   if (status !== undefined) {
     existing.status = status === "Concluída" ? "Concluída" : "Pendente";
@@ -337,7 +349,10 @@ app.put("/api/tasks/:id", (req, res) => {
   if (descricao !== undefined) existing.descricao = descricao.trim();
   if (categoria !== undefined) existing.categoria = categoria.trim();
   if (prioridade !== undefined) existing.prioridade = prioridade;
+  if (data_inicio !== undefined) existing.data_inicio = data_inicio;
   if (data_vencimento !== undefined) existing.data_vencimento = data_vencimento;
+  if (hora_inicio !== undefined) existing.hora_inicio = hora_inicio ? hora_inicio.trim() : undefined;
+  if (hora_fim !== undefined) existing.hora_fim = hora_fim ? hora_fim.trim() : undefined;
 
   db.tarefas[index] = existing;
   saveDB(db);

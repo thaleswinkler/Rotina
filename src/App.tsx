@@ -63,6 +63,31 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Theme state ('light' | 'dark')
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("rotinapro_theme");
+      if (saved === "dark" || saved === "light") return saved;
+      if (window.matchMedia("(prefers-color-scheme: dark)").matches) return "dark";
+    }
+    return "light";
+  });
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      if (theme === "dark") {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+      localStorage.setItem("rotinapro_theme", theme);
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
   // Tabs: 'mercado' | 'em_breve' | 'calendario' | 'projetos' | 'manual' | 'voz' | 'python'
   const [activeTab, setActiveTab] = useState<
     "mercado" | "em_breve" | "calendario" | "projetos" | "manual" | "voz" | "python"
@@ -455,7 +480,10 @@ export default function App() {
     descricao: string;
     categoria: string;
     prioridade: Prioridade;
+    data_inicio?: string;
     data_vencimento: string;
+    hora_inicio?: string;
+    hora_fim?: string;
   }) => {
     setIsSyncing(true);
     try {
@@ -556,11 +584,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-100/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-150">
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
           <span>{toast.text}</span>
         </div>
       )}
@@ -574,6 +602,8 @@ export default function App() {
           setIsBackupModalOpen(true);
         }}
         user={currentUser}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         onLoginGoogle={async () => {
           try {
             await loginWithGoogle();
@@ -602,25 +632,25 @@ export default function App() {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1">
-        {/* Navigation Tabs */}
-        <div className="flex items-center justify-between border-b border-slate-200 pb-0 mb-6 overflow-x-auto gap-2">
+        {/* Navigation Tabs with High Contrast */}
+        <div className="flex items-center justify-between border-b-2 border-slate-300 dark:border-slate-800 pb-0 mb-6 overflow-x-auto gap-2">
           <div className="flex items-center gap-1 sm:gap-2">
             <button
               onClick={() => setActiveTab("mercado")}
               className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
                 activeTab === "mercado"
-                  ? "border-emerald-600 text-emerald-700 bg-white shadow-2xs"
-                  : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+                  ? "border-emerald-600 text-emerald-700 dark:text-emerald-400 bg-white dark:bg-slate-900 shadow-2xs font-bold"
+                  : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
               }`}
             >
-              <ShoppingCart className="w-4 h-4 text-emerald-600" />
+              <ShoppingCart className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>🛒 Mercado</span>
               {(metrics.totalMercadoPendentes || 0) > 0 ? (
                 <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-rose-500 text-white font-black animate-pulse">
                   {metrics.totalMercadoPendentes}
                 </span>
               ) : (
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-slate-100 text-slate-600 font-bold">
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">
                   {mercadoItens.length}
                 </span>
               )}
@@ -630,18 +660,18 @@ export default function App() {
               onClick={() => setActiveTab("em_breve")}
               className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
                 activeTab === "em_breve"
-                  ? "border-indigo-600 text-indigo-700 bg-white shadow-2xs font-bold"
-                  : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+                  ? "border-indigo-600 text-indigo-700 dark:text-indigo-400 bg-white dark:bg-slate-900 shadow-2xs font-bold"
+                  : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
               }`}
             >
-              <CalendarClock className="w-4 h-4 text-indigo-600" />
+              <CalendarClock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               <span>📅 Em Breve</span>
               {metrics.pendentes > 0 ? (
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-indigo-100 text-indigo-700 font-bold">
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold">
                   {metrics.pendentes}
                 </span>
               ) : (
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-slate-100 text-slate-600 font-bold">
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">
                   0
                 </span>
               )}
@@ -651,11 +681,11 @@ export default function App() {
               onClick={() => setActiveTab("calendario")}
               className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
                 activeTab === "calendario"
-                  ? "border-indigo-600 text-indigo-700 bg-white shadow-2xs font-bold"
-                  : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+                  ? "border-indigo-600 text-indigo-700 dark:text-indigo-400 bg-white dark:bg-slate-900 shadow-2xs font-bold"
+                  : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
               }`}
             >
-              <CalendarDays className="w-4 h-4 text-indigo-600" />
+              <CalendarDays className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               <span>🗓️ Calendário</span>
             </button>
 
@@ -663,13 +693,13 @@ export default function App() {
               onClick={() => setActiveTab("projetos")}
               className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
                 activeTab === "projetos"
-                  ? "border-indigo-600 text-indigo-600 bg-white font-bold"
-                  : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+                  ? "border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 font-bold"
+                  : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
               }`}
             >
-              <FolderKanban className="w-4 h-4 text-purple-600" />
+              <FolderKanban className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               <span>📁 Projetos & Etapas</span>
-              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-purple-100 text-purple-700 font-bold">
+              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[11px] bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-bold">
                 {projetos.length}
               </span>
             </button>
@@ -678,8 +708,8 @@ export default function App() {
               onClick={() => setActiveTab("manual")}
               className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
                 activeTab === "manual"
-                  ? "border-indigo-600 text-indigo-600 bg-white"
-                  : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+                  ? "border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 font-bold"
+                  : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
               }`}
             >
               <PenTool className="w-4 h-4" />
@@ -690,11 +720,11 @@ export default function App() {
               onClick={() => setActiveTab("voz")}
               className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
                 activeTab === "voz"
-                  ? "border-indigo-600 text-indigo-600 bg-white"
-                  : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+                  ? "border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 font-bold"
+                  : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
               }`}
             >
-              <Mic className="w-4 h-4 text-indigo-600" />
+              <Mic className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               <span>🎙️ Por Voz</span>
             </button>
 
@@ -702,8 +732,8 @@ export default function App() {
               onClick={() => setActiveTab("python")}
               className={`py-3 px-3 sm:px-3.5 text-xs sm:text-sm font-semibold rounded-t-xl transition-all flex items-center gap-2 border-b-2 cursor-pointer shrink-0 ${
                 activeTab === "python"
-                  ? "border-indigo-600 text-indigo-600 bg-white"
-                  : "border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+                  ? "border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 font-bold"
+                  : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
               }`}
             >
               <Code2 className="w-4 h-4" />

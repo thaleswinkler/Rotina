@@ -8,7 +8,10 @@ export interface Tarefa {
   descricao: string;
   categoria: string;
   prioridade: Prioridade;
-  data_vencimento: string;
+  data_inicio?: string; // Data de início (YYYY-MM-DD)
+  data_vencimento: string; // Data de término / vencimento (YYYY-MM-DD)
+  hora_inicio?: string; // Horário de início (HH:mm)
+  hora_fim?: string; // Horário de término (HH:mm)
   status: StatusTarefa;
   criado_em: string;
   userId?: string;
@@ -20,7 +23,10 @@ export interface PassoProjeto {
   titulo: string;
   concluido: boolean;
   ordem: number;
+  data_inicio?: string;
   data_limite?: string;
+  hora_inicio?: string;
+  hora_fim?: string;
   tipo?: string; // Tipo/Grupo de tarefa (ex: "Planejamento", "Design", "Execução", "Testes", etc.)
 }
 

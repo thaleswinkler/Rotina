@@ -53,7 +53,10 @@ interface UpcomingTabProps {
     descricao: string;
     categoria: string;
     prioridade: Prioridade;
+    data_inicio?: string;
     data_vencimento: string;
+    hora_inicio?: string;
+    hora_fim?: string;
   }) => Promise<void>;
   onNavigateToTab?: (tab: string) => void;
   onShowToast: (text: string, type?: "success" | "info") => void;

@@ -9,7 +9,10 @@ interface ManualInsertFormProps {
     descricao: string;
     categoria: string;
     prioridade: Prioridade;
+    data_inicio?: string;
     data_vencimento: string;
+    hora_inicio?: string;
+    hora_fim?: string;
   }) => Promise<void>;
   onSwitchToVoiceTab?: () => void;
 }
@@ -28,7 +31,10 @@ export const ManualInsertForm: React.FC<ManualInsertFormProps> = ({
   const [descricao, setDescricao] = useState("");
   const [categoria, setCategoria] = useState(categorias[0] || "Trabalho");
   const [prioridade, setPrioridade] = useState<Prioridade>("Média");
+  const [dataInicio, setDataInicio] = useState(getTodayISO());
   const [dataVencimento, setDataVencimento] = useState(getTodayISO());
+  const [horaInicio, setHoraInicio] = useState("");
+  const [horaFim, setHoraFim] = useState("");
   const [loading, setLoading] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -48,14 +54,20 @@ export const ManualInsertForm: React.FC<ManualInsertFormProps> = ({
         descricao: descricao.trim(),
         categoria,
         prioridade,
+        data_inicio: dataInicio || dataVencimento,
         data_vencimento: dataVencimento,
+        hora_inicio: horaInicio ? horaInicio.trim() : undefined,
+        hora_fim: horaFim ? horaFim.trim() : undefined,
       });
 
       // Clear form
       setTitulo("");
       setDescricao("");
       setPrioridade("Média");
+      setDataInicio(getTodayISO());
       setDataVencimento(getTodayISO());
+      setHoraInicio("");
+      setHoraFim("");
       setMensagemSucesso(true);
       setTimeout(() => setMensagemSucesso(false), 3500);
     } catch (err: any) {
@@ -166,18 +178,65 @@ export const ManualInsertForm: React.FC<ManualInsertFormProps> = ({
           </div>
         </div>
 
-        {/* Data de Vencimento */}
-        <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
-            Data de Vencimento <span className="text-rose-500">*</span>
-          </label>
-          <input
-            type="date"
-            required
-            value={dataVencimento}
-            onChange={(e) => setDataVencimento(e.target.value)}
-            className="w-full sm:w-1/2 px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900"
-          />
+        {/* Datas de Início e Término */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              Data de Início
+            </label>
+            <input
+              type="date"
+              required
+              value={dataInicio}
+              onChange={(e) => {
+                setDataInicio(e.target.value);
+                if (dataVencimento < e.target.value) {
+                  setDataVencimento(e.target.value);
+                }
+              }}
+              className="w-full px-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 dark:text-slate-100"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              Data de Término (Vencimento) <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="date"
+              required
+              value={dataVencimento}
+              onChange={(e) => setDataVencimento(e.target.value)}
+              className="w-full px-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 dark:text-slate-100"
+            />
+          </div>
+        </div>
+
+        {/* Horários das Atividades */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              Horário de Início (opcional)
+            </label>
+            <input
+              type="time"
+              value={horaInicio}
+              onChange={(e) => setHoraInicio(e.target.value)}
+              className="w-full px-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 dark:text-slate-100"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              Horário de Término (opcional)
+            </label>
+            <input
+              type="time"
+              value={horaFim}
+              onChange={(e) => setHoraFim(e.target.value)}
+              className="w-full px-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 dark:text-slate-100"
+            />
+          </div>
         </div>
 
         {/* Descrição */}
