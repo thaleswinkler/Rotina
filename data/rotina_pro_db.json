@@ -219,6 +219,210 @@
       "categoria": "Finanças",
       "descricao": "",
       "criado_em": "2026-09-17T17:40:36.694Z"
+    },
+    {
+      "id": "task_churrasco_2026",
+      "titulo": "Churrasco",
+      "descricao": "",
+      "categoria": "Pessoal",
+      "prioridade": "Média",
+      "data_inicio": "2026-11-28",
+      "data_vencimento": "2026-11-28",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_estap_uete_2027",
+      "titulo": "ESTAP UETE",
+      "descricao": "1 a 4 FEV",
+      "categoria": "Trabalho",
+      "prioridade": "Alta",
+      "data_inicio": "2027-02-01",
+      "data_vencimento": "2027-02-04",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_carnaval_2027",
+      "titulo": "Carnaval",
+      "descricao": "5 a 10 FEV",
+      "categoria": "Datas",
+      "prioridade": "Média",
+      "data_inicio": "2027-02-05",
+      "data_vencimento": "2027-02-10",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_apresentacao_candidatos_2027",
+      "titulo": "Apresentação Candidatos",
+      "descricao": "18 FEV",
+      "categoria": "Trabalho",
+      "prioridade": "Alta",
+      "data_inicio": "2027-02-18",
+      "data_vencimento": "2027-02-18",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_entrada_portoes_2027",
+      "titulo": "Entrada Portões",
+      "descricao": "8 MAR",
+      "categoria": "Trabalho",
+      "prioridade": "Alta",
+      "data_inicio": "2027-03-08",
+      "data_vencimento": "2027-03-08",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_paixao_cristo_2027",
+      "titulo": "Feriado Paixão de Cristo",
+      "descricao": "26 MAR",
+      "categoria": "Datas",
+      "prioridade": "Média",
+      "data_inicio": "2027-03-26",
+      "data_vencimento": "2027-03-26",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_dia_eb_2027",
+      "titulo": "Dia do EB",
+      "descricao": "19 ABR",
+      "categoria": "Trabalho",
+      "prioridade": "Alta",
+      "data_inicio": "2027-04-19",
+      "data_vencimento": "2027-04-19",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_tiradentes_2027",
+      "titulo": "Feriado Tiradentes",
+      "descricao": "21 ABR",
+      "categoria": "Datas",
+      "prioridade": "Média",
+      "data_inicio": "2027-04-21",
+      "data_vencimento": "2027-04-21",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_recesso_alunos_2027",
+      "titulo": "Recesso Alunos",
+      "descricao": "26 JUL a 6 AGO",
+      "categoria": "Trabalho",
+      "prioridade": "Alta",
+      "data_inicio": "2027-07-26",
+      "data_vencimento": "2027-08-06",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_dia_soldado_2027",
+      "titulo": "Feriado Dia do Soldado",
+      "descricao": "25 AGO",
+      "categoria": "Trabalho",
+      "prioridade": "Alta",
+      "data_inicio": "2027-08-25",
+      "data_vencimento": "2027-08-25",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_fit_2027",
+      "titulo": "FIT",
+      "descricao": "26 a 28 OUT",
+      "categoria": "Saúde",
+      "prioridade": "Alta",
+      "data_inicio": "2027-10-26",
+      "data_vencimento": "2027-10-28",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_eld_2027",
+      "titulo": "3º ELD",
+      "descricao": "27 OUT a 1 NOV",
+      "categoria": "Trabalho",
+      "prioridade": "Alta",
+      "data_inicio": "2027-10-27",
+      "data_vencimento": "2027-11-01",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_nossa_senhora_2027",
+      "titulo": "Feriado Nossa Senhora Aparecida",
+      "descricao": "11 a 12 OUT",
+      "categoria": "Datas",
+      "prioridade": "Média",
+      "data_inicio": "2027-10-11",
+      "data_vencimento": "2027-10-12",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_finados_2027",
+      "titulo": "Feriado Finados",
+      "descricao": "1 e 2 NOV",
+      "categoria": "Datas",
+      "prioridade": "Média",
+      "data_inicio": "2027-11-01",
+      "data_vencimento": "2027-11-02",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_proclamacao_2027",
+      "titulo": "Feriado Proclamação da República",
+      "descricao": "15 NOV",
+      "categoria": "Datas",
+      "prioridade": "Média",
+      "data_inicio": "2027-11-15",
+      "data_vencimento": "2027-11-15",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_bandeira_2027",
+      "titulo": "Dia da Bandeira",
+      "descricao": "19 NOV",
+      "categoria": "Datas",
+      "prioridade": "Média",
+      "data_inicio": "2027-11-19",
+      "data_vencimento": "2027-11-19",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
+    },
+    {
+      "id": "task_formatura_2027",
+      "titulo": "Formatura Encerramento",
+      "descricao": "2 DEZ",
+      "categoria": "Trabalho",
+      "prioridade": "Alta",
+      "data_inicio": "2027-12-02",
+      "data_vencimento": "2027-12-02",
+      "status": "Pendente",
+      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
+      "criado_em": "2026-11-09T15:59:00.008Z"
     }
   ],
   "projetos": [
@@ -526,11 +730,179 @@
     {
       "passos": [
         {
+          "id": "step_1789667768411_0",
+          "concluido": true,
+          "data_limite": "2026-09-28",
           "projeto_id": "",
           "titulo": "Iniciar 26 SET",
-          "id": "step_1789667768411_0",
-          "ordem": 1,
+          "ordem": 1
+        },
+        {
+          "data_limite": "2027-04-19",
+          "tipo": "Antes de Ir",
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "concluido": false,
+          "id": "step_1790058358966_qp53",
+          "ordem": 3,
+          "titulo": "Início passagem à disposição para deslocamento"
+        },
+        {
+          "ordem": 4,
+          "concluido": false,
+          "data_limite": "2026-11-11",
+          "tipo": "Provas EAD",
+          "id": "step_1790058395758_5byx",
+          "titulo": "Prova EPM/DH/Liderança e História",
+          "projeto_id": "iysXumS1hX57maINLBsl"
+        },
+        {
+          "data_limite": "2027-01-06",
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "ordem": 5,
+          "id": "step_1790059050846_2zve",
+          "tipo": "Provas EAD",
+          "titulo": "Prova Gestão Adm I (A e B)",
           "concluido": false
+        },
+        {
+          "data_limite": "2027-02-24",
+          "titulo": "Prova Gestão Adm I (C e D)",
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "tipo": "Provas EAD",
+          "ordem": 6,
+          "concluido": false,
+          "id": "step_1790059072058_t7t9"
+        },
+        {
+          "concluido": false,
+          "tipo": "Provas EAD",
+          "titulo": "Prova 4ª AF",
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "data_limite": "2027-04-14",
+          "ordem": 7,
+          "id": "step_1790059089614_5cjj"
+        },
+        {
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "titulo": "Aula live – abertura do turno – 15:00 horas",
+          "id": "step_1790059122766_tcht",
+          "ordem": 8,
+          "tipo": "Aulas",
+          "concluido": true,
+          "data_limite": "2026-09-28"
+        },
+        {
+          "id": "step_1790059148841_da1c",
+          "ordem": 9,
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "titulo": "Aula live – Projeto Interdisciplinar – divisão de grupos – 14:30",
+          "concluido": false,
+          "data_limite": "2027-01-20",
+          "tipo": "Aulas"
+        },
+        {
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "id": "step_1790059173913_mvmx",
+          "ordem": 10,
+          "concluido": false,
+          "tipo": "Aulas",
+          "data_limite": "2027-02-15",
+          "titulo": "Aula live – Projeto de Pesquisa e Trabalho AMP – 14:30"
+        },
+        {
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "titulo": "Aula live – Revisão AF4",
+          "tipo": "Aulas",
+          "concluido": false,
+          "data_limite": "2027-04-20",
+          "id": "step_1790059191873_8gbs",
+          "ordem": 11
+        },
+        {
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "ordem": 12,
+          "data_limite": "2027-04-27",
+          "tipo": "Aulas",
+          "concluido": false,
+          "id": "step_1790059208985_bf99",
+          "titulo": "Aula live – Orientações finais"
+        },
+        {
+          "id": "step_1790059226633_fmt7",
+          "titulo": "Envio do Projeto de Pesquisa",
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "ordem": 13,
+          "data_limite": "2027-04-16",
+          "concluido": false
+        },
+        {
+          "data_limite": "2027-04-23",
+          "titulo": "Disponibilização da FOPF (1ª PFE/Somativa) para o Sgt Alu, no EBAula",
+          "id": "cas_step_fopf_2027",
+          "tipo": "Provas EAD",
+          "ordem": 14,
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "concluido": false
+        },
+        {
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "data_limite": "2027-02-01",
+          "titulo": "exames de glicemia em jejum, triglicerídeos e HDL",
+          "ordem": 15,
+          "id": "step_1790059897893_yyzp",
+          "tipo": "Antes de Ir",
+          "concluido": false
+        },
+        {
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "tipo": "Antes de Ir",
+          "titulo": "Levar IS, Pré-TAF, DIEx de apresentação, exames, BI Pré TAF, carteira vacinação.",
+          "data_limite": "2027-04-14",
+          "id": "step_1790059943857_ejfr",
+          "concluido": false,
+          "ordem": 15
+        },
+        {
+          "tipo": "Geral",
+          "titulo": "Remeter foto fardado (Seção Psicopedagógica)",
+          "id": "step_1790612528129_run5",
+          "data_limite": "2026-10-30",
+          "concluido": false,
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "ordem": 16
+        },
+        {
+          "concluido": true,
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "titulo": "Aulas História",
+          "data_limite": "2026-11-11",
+          "ordem": 17,
+          "tipo": "Aulas",
+          "id": "step_1793041229378_boq9"
+        },
+        {
+          "id": "cas_step_fase2_2027",
+          "titulo": "Início da 2ª Fase",
+          "data_limite": "2027-05-06",
+          "concluido": false,
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "ordem": 18
+        },
+        {
+          "id": "cas_step_pfe1_2027",
+          "titulo": "1ª PFE/Somativa",
+          "data_limite": "2027-05-10",
+          "concluido": false,
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "ordem": 19
+        },
+        {
+          "id": "cas_step_encerra_2027",
+          "titulo": "Encerramento do CAS (formatura de encerramento pode ser adiantada)",
+          "data_limite": "2027-07-09",
+          "concluido": false,
+          "projeto_id": "iysXumS1hX57maINLBsl",
+          "ordem": 20
         }
       ],
       "titulo": "CAS",
