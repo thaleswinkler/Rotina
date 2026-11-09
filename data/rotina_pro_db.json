@@ -1,48 +1,6 @@
 {
   "tarefas": [
     {
-      "id": "task_avot_restored",
-      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
-      "prioridade": "Alta",
-      "status": "Pendente",
-      "criado_em": "2026-11-09T10:00:00.000Z",
-      "descricao": "Atividade AVOT",
-      "data_inicio": "2026-11-10",
-      "data_vencimento": "2026-11-10",
-      "hora_inicio": "08:00",
-      "hora_fim": "11:30",
-      "titulo": "avot",
-      "categoria": "Trabalho"
-    },
-    {
-      "id": "task_eld_restored",
-      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
-      "prioridade": "Alta",
-      "status": "Pendente",
-      "criado_em": "2026-11-09T10:01:00.000Z",
-      "descricao": "3º Estágio de Liderança e Desenvolvimento",
-      "data_inicio": "2026-11-11",
-      "data_vencimento": "2026-11-11",
-      "hora_inicio": "07:30",
-      "hora_fim": "17:00",
-      "titulo": "3º ELD",
-      "categoria": "Trabalho"
-    },
-    {
-      "id": "task_fit_restored",
-      "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
-      "prioridade": "Alta",
-      "status": "Pendente",
-      "criado_em": "2026-11-09T10:02:00.000Z",
-      "descricao": "Treinamento Físico / FIT",
-      "data_inicio": "2026-11-12",
-      "data_vencimento": "2026-11-12",
-      "hora_inicio": "06:30",
-      "hora_fim": "07:30",
-      "titulo": "FIT",
-      "categoria": "Saúde"
-    },
-    {
       "id": "0y5OqGVKTy7qe1qM7O82",
       "userId": "jpsLmPCE6MYays7yqPxcyz2yAwc2",
       "prioridade": "Baixa",
