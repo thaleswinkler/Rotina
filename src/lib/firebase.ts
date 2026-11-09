@@ -258,6 +258,21 @@ export async function limparCompradosMercadoFirestore(itens: ItemMercado[]): Pro
   await batch.commit();
 }
 
+// Helper: Remove undefined properties recursively so Firestore setDoc/updateDoc never fails
+function sanitizeFirestoreData<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+        result[key] = sanitizeFirestoreData(value);
+      } else {
+        result[key] = value;
+      }
+    }
+  }
+  return result;
+}
+
 export async function addTarefaFirestore(
   tarefa: {
     titulo: string;
@@ -275,14 +290,18 @@ export async function addTarefaFirestore(
 ): Promise<string> {
   const colRef = collection(db, "tarefas");
   const newDoc = doc(colRef);
-  const data = {
+  const data = sanitizeFirestoreData({
     ...tarefa,
     descricao: tarefa.descricao || "",
     status: tarefa.status || "Pendente",
+    data_inicio: tarefa.data_inicio || "",
+    data_vencimento: tarefa.data_vencimento || "",
+    hora_inicio: tarefa.hora_inicio || "",
+    hora_fim: tarefa.hora_fim || "",
     id: newDoc.id,
     userId: userId || auth.currentUser?.uid || "anonymous",
     criado_em: tarefa.criado_em || new Date().toISOString(),
-  };
+  });
   await setDoc(newDoc, data);
   return newDoc.id;
 }
@@ -292,7 +311,8 @@ export async function updateTarefaFirestore(
   updates: Partial<Tarefa>
 ): Promise<void> {
   const docRef = doc(db, "tarefas", String(id));
-  await updateDoc(docRef, updates);
+  const sanitized = sanitizeFirestoreData(updates as Record<string, any>);
+  await updateDoc(docRef, sanitized);
 }
 
 export async function deleteTarefaFirestore(id: string | number): Promise<void> {
@@ -315,17 +335,17 @@ export async function addProjetoFirestore(
 ): Promise<string> {
   const colRef = collection(db, "projetos");
   const newDoc = doc(colRef);
-  const data = {
+  const data = sanitizeFirestoreData({
     ...projeto,
     descricao: projeto.descricao || "",
     status: projeto.status || "Em Andamento",
     data_limite: projeto.data_limite || "",
-    passos: projeto.passos || [],
+    passos: (projeto.passos || []).map((p) => sanitizeFirestoreData(p)),
     tipos_tarefas: projeto.tipos_tarefas || [],
     id: newDoc.id,
     userId: userId || auth.currentUser?.uid || "anonymous",
     criado_em: projeto.criado_em || new Date().toISOString(),
-  };
+  });
   await setDoc(newDoc, data);
   return newDoc.id;
 }
@@ -335,7 +355,11 @@ export async function updateProjetoFirestore(
   updates: Partial<Projeto>
 ): Promise<void> {
   const docRef = doc(db, "projetos", String(id));
-  await updateDoc(docRef, updates);
+  const sanitized = sanitizeFirestoreData(updates as Record<string, any>);
+  if (sanitized.passos && Array.isArray(sanitized.passos)) {
+    sanitized.passos = sanitized.passos.map((p: any) => sanitizeFirestoreData(p));
+  }
+  await updateDoc(docRef, sanitized);
 }
 
 export async function deleteProjetoFirestore(id: string | number): Promise<void> {

@@ -47,9 +47,42 @@ import {
 } from "./lib/firebase";
 
 export default function App() {
-  const [tarefas, setTarefas] = useState<Tarefa[]>([]);
-  const [projetos, setProjetos] = useState<Projeto[]>([]);
-  const [mercadoItens, setMercadoItens] = useState<ItemMercado[]>([]);
+  const [tarefas, setTarefas] = useState<Tarefa[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("rotinapro_tarefas_cache");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [projetos, setProjetos] = useState<Projeto[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("rotinapro_projetos_cache");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [mercadoItens, setMercadoItens] = useState<ItemMercado[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("rotinapro_mercado_cache");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [categorias, setCategorias] = useState<string[]>([
     "Trabalho",
     "Pessoal",
@@ -59,7 +92,7 @@ export default function App() {
     "Projetos",
   ]);
   const [hasGeminiKey, setHasGeminiKey] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -87,6 +120,31 @@ export default function App() {
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
+
+  // Keep offline-first localStorage cache always in sync
+  useEffect(() => {
+    if (tarefas.length > 0 && typeof window !== "undefined") {
+      try {
+        localStorage.setItem("rotinapro_tarefas_cache", JSON.stringify(tarefas));
+      } catch {}
+    }
+  }, [tarefas]);
+
+  useEffect(() => {
+    if (projetos.length > 0 && typeof window !== "undefined") {
+      try {
+        localStorage.setItem("rotinapro_projetos_cache", JSON.stringify(projetos));
+      } catch {}
+    }
+  }, [projetos]);
+
+  useEffect(() => {
+    if (mercadoItens.length > 0 && typeof window !== "undefined") {
+      try {
+        localStorage.setItem("rotinapro_mercado_cache", JSON.stringify(mercadoItens));
+      } catch {}
+    }
+  }, [mercadoItens]);
 
   // Tabs: 'mercado' | 'em_breve' | 'calendario' | 'projetos' | 'manual' | 'voz' | 'python'
   const [activeTab, setActiveTab] = useState<
@@ -486,30 +544,43 @@ export default function App() {
     hora_fim?: string;
   }) => {
     setIsSyncing(true);
+    const tempId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const optimisticTask: Tarefa = {
+      ...novaTarefa,
+      id: tempId,
+      status: "Pendente",
+      criado_em: new Date().toISOString(),
+    };
+
+    // Immediate state & persistent localStorage update (zero latency, zero loss)
+    setTarefas((prev) => {
+      const next = [optimisticTask, ...prev.filter((t) => String(t.id) !== tempId)];
+      try {
+        localStorage.setItem("rotinapro_tarefas_cache", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
     try {
-      // 1. Save to server DB first
-      const res = await fetch("/api/tasks", {
+      // 1. Send to local server DB in parallel
+      fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(novaTarefa),
-      });
-      const created = await res.json().catch(() => null);
+      }).catch(() => {});
 
-      if (created && created.id) {
-        setTarefas((prev) => [created, ...prev.filter((t) => String(t.id) !== String(created.id))]);
-      } else {
-        const localTask: Tarefa = {
-          ...novaTarefa,
-          id: Date.now(),
-          status: "Pendente",
-          criado_em: new Date().toISOString(),
-        };
-        setTarefas((prev) => [localTask, ...prev]);
-      }
-
-      // 2. Sync to Firestore in background
+      // 2. Sync to Firestore (primary persistent cloud DB)
       try {
-        await addTarefaFirestore(novaTarefa, currentUser?.uid);
+        const firestoreId = await addTarefaFirestore(novaTarefa, currentUser?.uid);
+        if (firestoreId) {
+          setTarefas((prev) => {
+            const next = prev.map((t) => (t.id === tempId ? { ...t, id: firestoreId } : t));
+            try {
+              localStorage.setItem("rotinapro_tarefas_cache", JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+        }
       } catch (err) {
         console.warn("Firestore add skipped:", err);
       }
