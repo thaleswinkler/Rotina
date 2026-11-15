@@ -23,8 +23,8 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
   const [descricao, setDescricao] = useState(tarefa.descricao || "");
   const [categoria, setCategoria] = useState(tarefa.categoria);
   const [prioridade, setPrioridade] = useState<Prioridade>(tarefa.prioridade);
-  const [dataInicio, setDataInicio] = useState(tarefa.data_inicio || tarefa.data_vencimento);
-  const [dataVencimento, setDataVencimento] = useState(tarefa.data_vencimento);
+  const [dataInicio, setDataInicio] = useState(tarefa.data_inicio || tarefa.data_vencimento || "");
+  const [dataVencimento, setDataVencimento] = useState(tarefa.data_vencimento || "");
   const [horaInicio, setHoraInicio] = useState(tarefa.hora_inicio || "");
   const [horaFim, setHoraFim] = useState(tarefa.hora_fim || "");
   const [saving, setSaving] = useState(false);
@@ -36,8 +36,8 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
       setDescricao(tarefa.descricao || "");
       setCategoria(tarefa.categoria);
       setPrioridade(tarefa.prioridade);
-      setDataInicio(tarefa.data_inicio || tarefa.data_vencimento);
-      setDataVencimento(tarefa.data_vencimento);
+      setDataInicio(tarefa.data_inicio || tarefa.data_vencimento || "");
+      setDataVencimento(tarefa.data_vencimento || "");
       setHoraInicio(tarefa.hora_inicio || "");
       setHoraFim(tarefa.hora_fim || "");
       setErro(null);
@@ -59,8 +59,8 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
         descricao: descricao.trim(),
         categoria,
         prioridade,
-        data_inicio: dataInicio || dataVencimento,
-        data_vencimento: dataVencimento,
+        data_inicio: dataInicio || "",
+        data_vencimento: dataVencimento || "",
         hora_inicio: horaInicio ? horaInicio.trim() : undefined,
         hora_fim: horaFim ? horaFim.trim() : undefined,
       });
@@ -150,11 +150,10 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
               </label>
               <input
                 type="date"
-                required
                 value={dataInicio}
                 onChange={(e) => {
                   setDataInicio(e.target.value);
-                  if (dataVencimento < e.target.value) {
+                  if (dataVencimento && e.target.value && dataVencimento < e.target.value) {
                     setDataVencimento(e.target.value);
                   }
                 }}
@@ -164,11 +163,10 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
 
             <div>
               <label className="block text-xs font-semibold uppercase text-slate-700 dark:text-slate-300 mb-1">
-                Data de Término (Vencimento) *
+                Data de Término (opcional)
               </label>
               <input
                 type="date"
-                required
                 value={dataVencimento}
                 onChange={(e) => setDataVencimento(e.target.value)}
                 className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 dark:text-slate-100"

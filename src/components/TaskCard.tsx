@@ -30,8 +30,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
   // Data helpers
   const hoje = new Date().toISOString().split("T")[0];
-  const isVencida = !isConcluida && tarefa.data_vencimento < hoje;
-  const isHoje = tarefa.data_vencimento === hoje;
+  const effectiveDate = tarefa.data_vencimento || tarefa.data_inicio || "";
+  const isVencida = !isConcluida && Boolean(effectiveDate) && effectiveDate < hoje;
+  const isHoje = Boolean(effectiveDate) && effectiveDate === hoje;
 
   // Priority styling
   const getPrioridadeBadge = () => {
@@ -111,9 +112,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             >
               <Calendar className="w-3 h-3" />
               <span>
-                {tarefa.data_inicio && tarefa.data_inicio !== tarefa.data_vencimento
+                {tarefa.data_inicio && tarefa.data_vencimento && tarefa.data_inicio !== tarefa.data_vencimento
                   ? `${formatarData(tarefa.data_inicio)} → ${formatarData(tarefa.data_vencimento)}`
-                  : formatarData(tarefa.data_vencimento)}
+                  : effectiveDate
+                  ? formatarData(effectiveDate)
+                  : "Sem data"}
               </span>
               {isVencida && (
                 <span className="text-[10px] uppercase tracking-wider bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded-sm font-semibold">

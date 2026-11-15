@@ -54,7 +54,7 @@ interface UpcomingTabProps {
     categoria: string;
     prioridade: Prioridade;
     data_inicio?: string;
-    data_vencimento: string;
+    data_vencimento?: string;
     hora_inicio?: string;
     hora_fim?: string;
   }) => Promise<void>;
@@ -95,6 +95,10 @@ const formatBrDate = (dateStr?: string) => {
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   }
   return dateStr;
+};
+
+const getTaskDate = (t: Tarefa): string => {
+  return t.data_vencimento || t.data_inicio || "";
 };
 
 const formatRelativeDate = (dateStr?: string) => {
@@ -180,10 +184,7 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
     const today = new Date();
     return today.toISOString().split("T")[0];
   });
-  const [novaDataVencimento, setNovaDataVencimento] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split("T")[0];
-  });
+  const [novaDataVencimento, setNovaDataVencimento] = useState("");
   const [novoHorarioInicio, setNovoHorarioInicio] = useState("");
   const [novoHorarioFim, setNovoHorarioFim] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -221,13 +222,14 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
         descricao: novaDescricao.trim(),
         categoria: novaCategoria,
         prioridade: novaPrioridade,
-        data_inicio: novaDataInicio || novaDataVencimento,
-        data_vencimento: novaDataVencimento,
+        data_inicio: novaDataInicio || undefined,
+        data_vencimento: novaDataVencimento || "",
         hora_inicio: novoHorarioInicio || undefined,
         hora_fim: novoHorarioFim || undefined,
       });
       setNovoTitulo("");
       setNovaDescricao("");
+      setNovaDataVencimento("");
       setNovoHorarioInicio("");
       setNovoHorarioFim("");
       setShowCreateForm(false);
@@ -260,11 +262,12 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
       }
 
       // Data específica
-      if (dataEspecificaFiltro && t.data_vencimento !== dataEspecificaFiltro) return false;
+      const taskDate = getTaskDate(t);
+      if (dataEspecificaFiltro && taskDate !== dataEspecificaFiltro) return false;
 
       // Período
       if (periodoFiltro !== "todos") {
-        const diff = getDaysDiff(t.data_vencimento);
+        const diff = getDaysDiff(taskDate);
         if (periodoFiltro === "sem_data" && diff !== null) return false;
         if (periodoFiltro === "vencidas" && (diff === null || diff >= 0)) return false;
         if (periodoFiltro === "hoje" && diff !== 0) return false;
@@ -348,10 +351,12 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
   // Ascending by date: overdue first, then today, tomorrow, this week, future, no date at the end
   const sortedTasks = useMemo(() => {
     return [...tarefasFiltradas].sort((a, b) => {
-      if (!a.data_vencimento && !b.data_vencimento) return 0;
-      if (!a.data_vencimento) return 1;
-      if (!b.data_vencimento) return -1;
-      return a.data_vencimento.localeCompare(b.data_vencimento);
+      const dateA = getTaskDate(a);
+      const dateB = getTaskDate(b);
+      if (!dateA && !dateB) return 0;
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+      return dateA.localeCompare(dateB);
     });
   }, [tarefasFiltradas]);
 
@@ -383,11 +388,12 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
     const combined: UnifiedUpcomingItem[] = [];
 
     sortedTasks.forEach((t) => {
+      const dateStr = getTaskDate(t);
       combined.push({
         type: "task",
         data: t,
-        dateStr: t.data_vencimento || "",
-        diff: getDaysDiff(t.data_vencimento),
+        dateStr,
+        diff: getDaysDiff(dateStr),
       });
     });
 
@@ -413,11 +419,12 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
     const noDateItems: UnifiedUpcomingItem[] = [];
 
     sortedTasks.forEach((t) => {
-      const diff = getDaysDiff(t.data_vencimento);
+      const dateStr = getTaskDate(t);
+      const diff = getDaysDiff(dateStr);
       const item: UnifiedUpcomingItem = {
         type: "task",
         data: t,
-        dateStr: t.data_vencimento || "",
+        dateStr,
         diff,
       };
       if (diff === null) {
@@ -779,25 +786,38 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
                 <input
                   type="date"
                   value={novaDataInicio}
-                  onChange={(e) => setNovaDataInicio(e.target.value)}
+                  onChange={(e) => {
+                    setNovaDataInicio(e.target.value);
+                    if (novaDataVencimento && e.target.value && novaDataVencimento < e.target.value) {
+                      setNovaDataVencimento(e.target.value);
+                    }
+                  }}
                   className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
                 />
               </div>
 
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
-                  🏁 Data de Término / Vencimento *
+                  🏁 Data de Término (opcional)
                 </label>
-                <input
-                  type="date"
-                  required
-                  value={novaDataVencimento}
-                  onChange={(e) => {
-                    setNovaDataVencimento(e.target.value);
-                    if (!novaDataInicio) setNovaDataInicio(e.target.value);
-                  }}
-                  className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
-                />
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={novaDataVencimento}
+                    onChange={(e) => setNovaDataVencimento(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                  {novaDataVencimento && (
+                    <button
+                      type="button"
+                      onClick={() => setNovaDataVencimento("")}
+                      className="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-xs cursor-pointer"
+                      title="Remover data de término"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1091,7 +1111,8 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
           {flatChronologicalList.map((item) => {
             if (item.type === "task") {
               const t = item.data;
-              const rel = formatRelativeDate(t.data_vencimento);
+              const taskDate = getTaskDate(t);
+              const rel = formatRelativeDate(taskDate);
               const isDone = t.status === "Concluída";
 
               return (
@@ -1100,7 +1121,7 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
                   className={`bg-white rounded-xl border p-3.5 transition-all shadow-2xs hover:shadow-xs flex items-start justify-between gap-3 group ${
                     isDone
                       ? "bg-slate-50/70 border-slate-200 text-slate-400"
-                      : t.data_vencimento && getDaysDiff(t.data_vencimento)! < 0
+                      : taskDate && getDaysDiff(taskDate)! < 0
                       ? "border-rose-200/90 hover:border-rose-300"
                       : "border-slate-200 hover:border-indigo-300"
                   }`}
@@ -1144,7 +1165,7 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
                         </span>
 
                         {/* Date range if start date differs from due date */}
-                        {t.data_inicio && t.data_inicio !== t.data_vencimento && (
+                        {t.data_inicio && t.data_vencimento && t.data_inicio !== t.data_vencimento && (
                           <span className="text-[10px] px-2 py-0.5 rounded-md border font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">
                             📅 {formatBrDate(t.data_inicio)} → {formatBrDate(t.data_vencimento)}
                           </span>
@@ -1305,7 +1326,8 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
                   {bucket.items.map((item) => {
                     if (item.type === "task") {
                       const t = item.data;
-                      const rel = formatRelativeDate(t.data_vencimento);
+                      const taskDate = getTaskDate(t);
+                      const rel = formatRelativeDate(taskDate);
                       const isDone = t.status === "Concluída";
 
                       return (
@@ -1314,7 +1336,7 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
                           className={`bg-white rounded-xl border p-3.5 transition-all shadow-2xs hover:shadow-xs flex items-start justify-between gap-3 group ${
                             isDone
                               ? "bg-slate-50/70 border-slate-200 text-slate-400"
-                              : t.data_vencimento && getDaysDiff(t.data_vencimento)! < 0
+                              : taskDate && getDaysDiff(taskDate)! < 0
                               ? "border-rose-200/90 hover:border-rose-300"
                               : "border-slate-200 hover:border-indigo-300"
                           }`}
@@ -1358,7 +1380,7 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
                                 </span>
 
                                 {/* Date range if start date differs from due date */}
-                                {t.data_inicio && t.data_inicio !== t.data_vencimento && (
+                                {t.data_inicio && t.data_vencimento && t.data_inicio !== t.data_vencimento && (
                                   <span className="text-[10px] px-2 py-0.5 rounded-md border font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">
                                     📅 {formatBrDate(t.data_inicio)} → {formatBrDate(t.data_vencimento)}
                                   </span>

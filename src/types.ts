@@ -9,7 +9,7 @@ export interface Tarefa {
   categoria: string;
   prioridade: Prioridade;
   data_inicio?: string; // Data de início (YYYY-MM-DD)
-  data_vencimento: string; // Data de término / vencimento (YYYY-MM-DD)
+  data_vencimento?: string; // Data de término / vencimento (YYYY-MM-DD) - opcional
   hora_inicio?: string; // Horário de início (HH:mm)
   hora_fim?: string; // Horário de término (HH:mm)
   status: StatusTarefa;

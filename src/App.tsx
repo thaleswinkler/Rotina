@@ -309,7 +309,7 @@ export default function App() {
       if (statusFiltro !== "Todos" && t.status !== statusFiltro) return false;
       if (categoriaFiltro !== "Todas" && t.categoria !== categoriaFiltro) return false;
       if (prioridadeFiltro !== "Todas" && t.prioridade !== prioridadeFiltro) return false;
-      if (dataFiltro && t.data_vencimento !== dataFiltro) return false;
+      if (dataFiltro && (t.data_vencimento || t.data_inicio) !== dataFiltro) return false;
       if (busca.trim()) {
         const q = busca.toLowerCase();
         const matchTitulo = t.titulo.toLowerCase().includes(q);
@@ -539,7 +539,7 @@ export default function App() {
     categoria: string;
     prioridade: Prioridade;
     data_inicio?: string;
-    data_vencimento: string;
+    data_vencimento?: string;
     hora_inicio?: string;
     hora_fim?: string;
   }) => {

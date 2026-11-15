@@ -56,12 +56,40 @@ interface CalendarTabProps {
     categoria: string;
     prioridade: Prioridade;
     data_inicio?: string;
-    data_vencimento: string;
+    data_vencimento?: string;
     hora_inicio?: string;
     hora_fim?: string;
   }) => Promise<void>;
   onShowToast: (text: string, type?: "success" | "info") => void;
   onNavigateToTab?: (tab: string) => void;
+}
+
+export interface BaseCalendarEvent {
+  uid: string;
+  type: "task" | "step";
+  title: string;
+  effStart: string;
+  effEnd: string;
+  horaInicio?: string;
+  horaFim?: string;
+  isMultiDay: boolean;
+  isCompleted: boolean;
+  categoria?: string;
+  prioridade?: Prioridade;
+  projetoTitulo?: string;
+  projetoId?: string | number;
+  taskData?: Tarefa;
+  stepData?: PassoProjeto;
+}
+
+export interface WeekBarSegment {
+  event: BaseCalendarEvent;
+  startCol: number;
+  endCol: number;
+  colSpan: number;
+  lane: number;
+  continuesFromPrevWeek: boolean;
+  continuesToNextWeek: boolean;
 }
 
 type CalendarViewMode = "mes" | "semana";
@@ -143,6 +171,72 @@ function getDatesInRange(startStr?: string, endStr?: string): string[] {
   return dates;
 }
 
+// UTC day diff (exact calendar days without DST drift)
+function diffDaysISO(startISO: string, endISO: string): number {
+  const [y1, m1, d1] = startISO.split("-").map(Number);
+  const [y2, m2, d2] = endISO.split("-").map(Number);
+  const utc1 = Date.UTC(y1, m1 - 1, d1);
+  const utc2 = Date.UTC(y2, m2 - 1, d2);
+  return Math.round((utc2 - utc1) / (1000 * 60 * 60 * 24));
+}
+
+// Pack multi-day events overlapping [weekStartISO, weekEndISO] into non-overlapping lanes
+function packWeekMultiDaySegments(
+  events: BaseCalendarEvent[],
+  weekStartISO: string,
+  weekEndISO: string
+): { segments: WeekBarSegment[]; laneCount: number } {
+  const overlapping = events.filter(
+    (ev) => ev.isMultiDay && ev.effStart <= weekEndISO && ev.effEnd >= weekStartISO
+  );
+
+  if (overlapping.length === 0) {
+    return { segments: [], laneCount: 0 };
+  }
+
+  const rawSegments = overlapping.map((ev) => {
+    const startCol = Math.max(0, diffDaysISO(weekStartISO, ev.effStart));
+    const endCol = Math.min(6, diffDaysISO(weekStartISO, ev.effEnd));
+    return {
+      event: ev,
+      startCol,
+      endCol,
+      colSpan: endCol - startCol + 1,
+      continuesFromPrevWeek: ev.effStart < weekStartISO,
+      continuesToNextWeek: ev.effEnd > weekEndISO,
+    };
+  });
+
+  // Sort by start column ascending, then longest span first, then completed status & title
+  rawSegments.sort((a, b) => {
+    if (a.startCol !== b.startCol) return a.startCol - b.startCol;
+    if (a.colSpan !== b.colSpan) return b.colSpan - a.colSpan;
+    if (a.event.isCompleted !== b.event.isCompleted) return a.event.isCompleted ? 1 : -1;
+    return a.event.title.localeCompare(b.event.title);
+  });
+
+  const laneLastEndCol: number[] = [];
+  const segments: WeekBarSegment[] = [];
+
+  for (const seg of rawSegments) {
+    let assignedLane = -1;
+    for (let l = 0; l < laneLastEndCol.length; l++) {
+      if (laneLastEndCol[l] < seg.startCol) {
+        assignedLane = l;
+        laneLastEndCol[l] = seg.endCol;
+        break;
+      }
+    }
+    if (assignedLane === -1) {
+      assignedLane = laneLastEndCol.length;
+      laneLastEndCol.push(seg.endCol);
+    }
+    segments.push({ ...seg, lane: assignedLane });
+  }
+
+  return { segments, laneCount: laneLastEndCol.length };
+}
+
 export const CalendarTab: React.FC<CalendarTabProps> = ({
   tarefas,
   projetos,
@@ -174,7 +268,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
   const [quickAddCategoria, setQuickAddCategoria] = useState(categorias[0] || "Trabalho");
   const [quickAddPrioridade, setQuickAddPrioridade] = useState<Prioridade>("Média");
   const [quickAddStartDate, setQuickAddStartDate] = useState(todayISO);
-  const [quickAddEndDate, setQuickAddEndDate] = useState(todayISO);
+  const [quickAddEndDate, setQuickAddEndDate] = useState("");
   const [quickAddStartTime, setQuickAddStartTime] = useState("");
   const [quickAddEndTime, setQuickAddEndTime] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -210,59 +304,46 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
     setSelectedDateISO(todayISO);
   };
 
-  // Aggregate all events with multi-day expansion and hour sorting
-  const eventsByDate = useMemo(() => {
-    const map = new Map<string, CalendarEventItem[]>();
+  // Aggregate filtered base events + per-day lookup maps
+  const { filteredBaseEvents, eventsByDate, singleEventsByDate } = useMemo(() => {
+    const baseList: BaseCalendarEvent[] = [];
 
-    const addEventToDate = (date: string, item: CalendarEventItem) => {
-      const arr = map.get(date) || [];
-      arr.push(item);
-      map.set(date, arr);
-    };
-
-    // 1. Process Tarefas (multi-day span from data_inicio to data_vencimento)
+    // 1. Collect Tarefas
     tarefas.forEach((t) => {
-      const start = t.data_inicio || t.data_vencimento;
-      const end = t.data_vencimento || t.data_inicio;
-      if (!start && !end) return;
+      const rawStart = t.data_inicio || t.data_vencimento;
+      const rawEnd = t.data_vencimento || t.data_inicio;
+      if (!rawStart && !rawEnd) return;
+      const s = rawStart!;
+      const e = rawEnd!;
+      const [effStart, effEnd] = s <= e ? [s, e] : [e, s];
 
-      const dateRange = getDatesInRange(start, end);
-      const isMulti = dateRange.length > 1;
-
-      dateRange.forEach((dayStr) => {
-        const isStart = dayStr === (start <= end ? start : end);
-        const isEnd = dayStr === (start <= end ? end : start);
-
-        addEventToDate(dayStr, {
-          id: `t_${t.id}_${dayStr}`,
-          type: "task",
-          title: t.titulo,
-          dateStr: dayStr,
-          dataInicio: start,
-          dataFim: end,
-          horaInicio: t.hora_inicio,
-          horaFim: t.hora_fim,
-          isStart,
-          isEnd,
-          isMultiDay: isMulti,
-          isCompleted: t.status === "Concluída",
-          categoria: t.categoria,
-          prioridade: t.prioridade,
-          taskData: t,
-        });
+      baseList.push({
+        uid: `task_${t.id}`,
+        type: "task",
+        title: t.titulo,
+        effStart,
+        effEnd,
+        horaInicio: t.hora_inicio,
+        horaFim: t.hora_fim,
+        isMultiDay: effStart !== effEnd,
+        isCompleted: t.status === "Concluída",
+        categoria: t.categoria,
+        prioridade: t.prioridade,
+        taskData: t,
       });
     });
 
-    // 2. Process Project Steps
+    // 2. Collect Project Steps
     projetos.forEach((proj) => {
       if (!proj.passos || proj.passos.length === 0) {
         if (proj.data_limite) {
-          addEventToDate(proj.data_limite, {
-            id: `p_${proj.id}_${proj.data_limite}`,
+          baseList.push({
+            uid: `proj_${proj.id}`,
             type: "step",
             title: `Projeto: ${proj.titulo}`,
-            dateStr: proj.data_limite,
-            dataFim: proj.data_limite,
+            effStart: proj.data_limite,
+            effEnd: proj.data_limite,
+            isMultiDay: false,
             isCompleted: proj.status === "Concluído",
             categoria: proj.categoria,
             projetoTitulo: proj.titulo,
@@ -273,67 +354,98 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
       }
 
       proj.passos.forEach((step) => {
-        const start = step.data_inicio || step.data_limite || proj.data_limite;
-        const end = step.data_limite || proj.data_limite || step.data_inicio;
-        if (!start && !end) return;
+        const rawStart = step.data_inicio || step.data_limite || proj.data_limite;
+        const rawEnd = step.data_limite || proj.data_limite || step.data_inicio;
+        if (!rawStart && !rawEnd) return;
+        const s = rawStart!;
+        const e = rawEnd!;
+        const [effStart, effEnd] = s <= e ? [s, e] : [e, s];
 
-        const dateRange = getDatesInRange(start, end);
-        const isMulti = dateRange.length > 1;
-
-        dateRange.forEach((dayStr) => {
-          const isStart = dayStr === (start <= end ? start : end);
-          const isEnd = dayStr === (start <= end ? end : start);
-
-          addEventToDate(dayStr, {
-            id: `step_${proj.id}_${step.id}_${dayStr}`,
-            type: "step",
-            title: step.titulo,
-            dateStr: dayStr,
-            dataInicio: start,
-            dataFim: end,
-            horaInicio: step.hora_inicio,
-            horaFim: step.hora_fim,
-            isStart,
-            isEnd,
-            isMultiDay: isMulti,
-            isCompleted: step.concluido,
-            categoria: proj.categoria,
-            projetoTitulo: proj.titulo,
-            projetoId: proj.id,
-            stepData: step,
-          });
+        baseList.push({
+          uid: `step_${proj.id}_${step.id}`,
+          type: "step",
+          title: step.titulo,
+          effStart,
+          effEnd,
+          horaInicio: step.hora_inicio,
+          horaFim: step.hora_fim,
+          isMultiDay: effStart !== effEnd,
+          isCompleted: step.concluido,
+          categoria: proj.categoria,
+          projetoTitulo: proj.titulo,
+          projetoId: proj.id,
+          stepData: step,
         });
       });
     });
 
-    // Filter and sort items for each day by time & completion
-    const filteredMap = new Map<string, CalendarEventItem[]>();
+    // Apply filters
+    const filteredBase = baseList.filter((ev) => {
+      if (categoriaFiltro !== "Todas" && ev.categoria !== categoriaFiltro) return false;
+      if (statusFiltro === "Pendentes" && ev.isCompleted) return false;
+      if (statusFiltro === "Concluídos" && !ev.isCompleted) return false;
+      if (tipoFiltro === "Tarefas" && ev.type !== "task") return false;
+      if (tipoFiltro === "Projetos" && ev.type !== "step") return false;
+      return true;
+    });
 
-    map.forEach((items, dateKey) => {
-      const filtered = items.filter((ev) => {
-        if (categoriaFiltro !== "Todas" && ev.categoria !== categoriaFiltro) return false;
-        if (statusFiltro === "Pendentes" && ev.isCompleted) return false;
-        if (statusFiltro === "Concluídos" && !ev.isCompleted) return false;
-        if (tipoFiltro === "Tarefas" && ev.type !== "task") return false;
-        if (tipoFiltro === "Projetos" && ev.type !== "step") return false;
-        return true;
+    const allMap = new Map<string, CalendarEventItem[]>();
+    const singleMap = new Map<string, CalendarEventItem[]>();
+
+    filteredBase.forEach((ev) => {
+      const dateRange = getDatesInRange(ev.effStart, ev.effEnd);
+      dateRange.forEach((dayStr) => {
+        const item: CalendarEventItem = {
+          id: `${ev.uid}_${dayStr}`,
+          type: ev.type,
+          title: ev.title,
+          dateStr: dayStr,
+          dataInicio: ev.effStart,
+          dataFim: ev.effEnd,
+          horaInicio: ev.horaInicio,
+          horaFim: ev.horaFim,
+          isStart: dayStr === ev.effStart,
+          isEnd: dayStr === ev.effEnd,
+          isMultiDay: ev.isMultiDay,
+          isCompleted: ev.isCompleted,
+          categoria: ev.categoria,
+          prioridade: ev.prioridade,
+          projetoTitulo: ev.projetoTitulo,
+          projetoId: ev.projetoId,
+          taskData: ev.taskData,
+          stepData: ev.stepData,
+        };
+
+        const arr = allMap.get(dayStr) || [];
+        arr.push(item);
+        allMap.set(dayStr, arr);
+
+        if (!ev.isMultiDay) {
+          const sArr = singleMap.get(dayStr) || [];
+          sArr.push(item);
+          singleMap.set(dayStr, sArr);
+        }
       });
+    });
 
-      // Sort: Pending first, then chronologically by horaInicio, then by title
-      filtered.sort((a, b) => {
+    const sortList = (list: CalendarEventItem[]) => {
+      list.sort((a, b) => {
         if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
         if (a.horaInicio && b.horaInicio) return a.horaInicio.localeCompare(b.horaInicio);
         if (a.horaInicio && !b.horaInicio) return -1;
         if (!a.horaInicio && b.horaInicio) return 1;
         return a.title.localeCompare(b.title);
       });
+    };
 
-      if (filtered.length > 0) {
-        filteredMap.set(dateKey, filtered);
-      }
-    });
+    allMap.forEach(sortList);
+    singleMap.forEach(sortList);
 
-    return filteredMap;
+    return {
+      filteredBaseEvents: filteredBase,
+      eventsByDate: allMap,
+      singleEventsByDate: singleMap,
+    };
   }, [tarefas, projetos, categoriaFiltro, statusFiltro, tipoFiltro]);
 
   // Selected date events
@@ -444,6 +556,28 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
     return days;
   }, [currentDate, todayISO]);
 
+  // Chunk monthGridDays into weeks of 7 days each
+  const monthWeeks = useMemo(() => {
+    const weeks: (typeof monthGridDays)[] = [];
+    for (let i = 0; i < monthGridDays.length; i += 7) {
+      weeks.push(monthGridDays.slice(i, i + 7));
+    }
+    return weeks;
+  }, [monthGridDays]);
+
+  // Precompute multi-day spanning bar layout per month week
+  const monthWeekLayouts = useMemo(() => {
+    return monthWeeks.map((week) =>
+      packWeekMultiDaySegments(filteredBaseEvents, week[0].dateISO, week[6].dateISO)
+    );
+  }, [monthWeeks, filteredBaseEvents]);
+
+  // Precompute multi-day spanning bar layout for the current week view
+  const weekViewLayout = useMemo(() => {
+    if (weekDays.length < 7) return { segments: [], laneCount: 0 };
+    return packWeekMultiDaySegments(filteredBaseEvents, weekDays[0].dateISO, weekDays[6].dateISO);
+  }, [weekDays, filteredBaseEvents]);
+
   // Quick Task Creation Submit
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -456,13 +590,14 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
         descricao: quickAddDesc.trim(),
         categoria: quickAddCategoria,
         prioridade: quickAddPrioridade,
-        data_inicio: quickAddStartDate || quickAddEndDate,
-        data_vencimento: quickAddEndDate,
+        data_inicio: quickAddStartDate || undefined,
+        data_vencimento: quickAddEndDate || "",
         hora_inicio: quickAddStartTime ? quickAddStartTime.trim() : undefined,
         hora_fim: quickAddEndTime ? quickAddEndTime.trim() : undefined,
       });
       setQuickAddTitle("");
       setQuickAddDesc("");
+      setQuickAddEndDate("");
       setQuickAddStartTime("");
       setQuickAddEndTime("");
       setShowQuickAdd(false);
@@ -476,7 +611,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
 
   const openQuickAddForDate = (dateISO: string) => {
     setQuickAddStartDate(dateISO);
-    setQuickAddEndDate(dateISO);
+    setQuickAddEndDate("");
     setShowQuickAdd(true);
   };
 
@@ -670,270 +805,404 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
             ))}
           </div>
 
-          {/* Days grid with sharp visible dividers */}
-          <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-slate-300 dark:divide-slate-700">
-            {monthGridDays.map((dayObj) => {
-              const dayEvents = eventsByDate.get(dayObj.dateISO) || [];
-              const pendingEvents = dayEvents.filter((ev) => !ev.isCompleted);
-              const isSelected = dayObj.dateISO === selectedDateISO;
+          {/* Week Rows with Continuous Spanning Multi-Day Bars + Day Cells */}
+          <div className="divide-y divide-slate-300 dark:divide-slate-700">
+            {monthWeeks.map((week, weekIdx) => {
+              const { segments, laneCount } = monthWeekLayouts[weekIdx] || { segments: [], laneCount: 0 };
 
               return (
-                <div
-                  key={dayObj.dateISO}
-                  onClick={() => setSelectedDateISO(dayObj.dateISO)}
-                  className={`min-h-[85px] sm:min-h-[115px] p-1.5 sm:p-2 transition-all flex flex-col justify-between cursor-pointer select-none relative ${
-                    isSelected
-                      ? "bg-indigo-50/80 dark:bg-indigo-950/60 ring-2 ring-indigo-600 dark:ring-indigo-400 ring-inset"
-                      : dayObj.isToday
-                      ? "bg-indigo-50/40 dark:bg-indigo-950/30"
-                      : !dayObj.isCurrentMonth
-                      ? "bg-slate-100/90 dark:bg-slate-950/90 text-slate-400 dark:text-slate-600"
-                      : dayObj.isWeekend
-                      ? "bg-slate-50/70 dark:bg-slate-900/60 hover:bg-slate-100/80 dark:hover:bg-slate-800/60"
-                      : "bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                  }`}
-                >
-                  {/* Top row: day number & today indicator */}
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`text-xs sm:text-sm font-bold rounded-lg w-6 h-6 flex items-center justify-center tabular-nums transition-colors ${
-                        dayObj.isToday
-                          ? "bg-indigo-600 text-white font-black shadow-xs"
-                          : isSelected
-                          ? "text-indigo-700 dark:text-indigo-300 font-black underline"
-                          : dayObj.isCurrentMonth
-                          ? "text-slate-900 dark:text-slate-100"
-                          : "text-slate-400 dark:text-slate-600 font-normal"
-                      }`}
-                    >
-                      {dayObj.dayNumber}
-                    </span>
+                <div key={week[0].dateISO} className="relative">
+                  {/* 7-Column Day Cells */}
+                  <div className="grid grid-cols-7 divide-x divide-slate-300 dark:divide-slate-700">
+                    {week.map((dayObj) => {
+                      const allDayEvents = eventsByDate.get(dayObj.dateISO) || [];
+                      const daySingleEvents = singleEventsByDate.get(dayObj.dateISO) || [];
+                      const pendingEvents = allDayEvents.filter((ev) => !ev.isCompleted);
+                      const isSelected = dayObj.dateISO === selectedDateISO;
 
-                    {/* Pending count badge on mobile */}
-                    {pendingEvents.length > 0 && (
-                      <span className="sm:hidden text-[10px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/80 px-1.5 py-0.2 rounded-full tabular-nums">
-                        {pendingEvents.length}
-                      </span>
-                    )}
-
-                    {/* Today label on desktop */}
-                    {dayObj.isToday && (
-                      <span className="hidden sm:inline text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400">
-                        Hoje
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Desktop Item previews with start/end indicators and times */}
-                  <div className="hidden sm:flex flex-col gap-1 mt-1.5 overflow-hidden">
-                    {dayEvents.slice(0, 3).map((ev) => {
-                      const hasTime = !!ev.horaInicio;
                       return (
                         <div
-                          key={ev.id}
-                          className={`text-[11px] px-1.5 py-0.5 rounded truncate flex items-center gap-1 leading-tight font-medium ${
-                            ev.isCompleted
-                              ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 line-through border border-slate-200 dark:border-slate-700"
-                              : ev.type === "step"
-                              ? "bg-purple-100 dark:bg-purple-950/70 text-purple-900 dark:text-purple-200 border border-purple-300 dark:border-purple-800"
-                              : "bg-indigo-100 dark:bg-indigo-950/70 text-indigo-900 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-800"
+                          key={dayObj.dateISO}
+                          onClick={() => setSelectedDateISO(dayObj.dateISO)}
+                          className={`min-h-[88px] sm:min-h-[115px] p-1 sm:p-2 transition-all flex flex-col cursor-pointer select-none relative ${
+                            isSelected
+                              ? "bg-indigo-50/80 dark:bg-indigo-950/60 ring-2 ring-indigo-600 dark:ring-indigo-400 ring-inset"
+                              : dayObj.isToday
+                              ? "bg-indigo-50/40 dark:bg-indigo-950/30"
+                              : !dayObj.isCurrentMonth
+                              ? "bg-slate-100/90 dark:bg-slate-950/90 text-slate-400 dark:text-slate-600"
+                              : dayObj.isWeekend
+                              ? "bg-slate-50/70 dark:bg-slate-900/60 hover:bg-slate-100/80 dark:hover:bg-slate-800/60"
+                              : "bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                           }`}
-                          title={`${ev.horaInicio ? `[${ev.horaInicio}] ` : ""}${ev.title}`}
                         >
-                          {/* Multi-day indicators */}
-                          {ev.isMultiDay && ev.isStart && (
-                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0" title="Início">
-                              ▶
+                          {/* Top row: day number & today indicator */}
+                          <div className="flex items-center justify-between h-6 shrink-0">
+                            <span
+                              className={`text-xs sm:text-sm font-bold rounded-lg w-6 h-6 flex items-center justify-center tabular-nums transition-colors ${
+                                dayObj.isToday
+                                  ? "bg-indigo-600 text-white font-black shadow-xs"
+                                  : isSelected
+                                  ? "text-indigo-700 dark:text-indigo-300 font-black underline"
+                                  : dayObj.isCurrentMonth
+                                  ? "text-slate-900 dark:text-slate-100"
+                                  : "text-slate-400 dark:text-slate-600 font-normal"
+                              }`}
+                            >
+                              {dayObj.dayNumber}
                             </span>
-                          )}
-                          {ev.isMultiDay && !ev.isStart && !ev.isEnd && (
-                            <span className="text-[10px] text-slate-400 shrink-0" title="Em andamento">
-                              ─
-                            </span>
-                          )}
-                          {ev.isMultiDay && ev.isEnd && (
-                            <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 shrink-0" title="Término">
-                              🏁
-                            </span>
+
+                            {/* Pending count badge on mobile */}
+                            {pendingEvents.length > 0 && (
+                              <span className="sm:hidden text-[10px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/80 px-1.5 py-0.2 rounded-full tabular-nums">
+                                {pendingEvents.length}
+                              </span>
+                            )}
+
+                            {/* Today label on desktop */}
+                            {dayObj.isToday && (
+                              <span className="hidden sm:inline text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400">
+                                Hoje
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Spacer reserving space for multi-day continuous spanning bars */}
+                          {laneCount > 0 && (
+                            <div
+                              style={{ height: `${laneCount * 24 + 4}px` }}
+                              className="shrink-0"
+                            />
                           )}
 
-                          {/* Time tag if present */}
-                          {hasTime && (
-                            <span className="font-mono text-[10px] font-bold opacity-90 shrink-0 tabular-nums">
-                              {ev.horaInicio}
-                            </span>
-                          )}
+                          {/* Desktop Single-Day Item previews */}
+                          <div className="hidden sm:flex flex-col gap-1 mt-1 overflow-hidden">
+                            {daySingleEvents.slice(0, 3).map((ev) => {
+                              const hasTime = !!ev.horaInicio;
+                              return (
+                                <div
+                                  key={ev.id}
+                                  className={`text-[11px] px-1.5 py-0.5 rounded truncate flex items-center gap-1 leading-tight font-medium ${
+                                    ev.isCompleted
+                                      ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 line-through border border-slate-200 dark:border-slate-700"
+                                      : ev.type === "step"
+                                      ? "bg-purple-100 dark:bg-purple-950/70 text-purple-900 dark:text-purple-200 border border-purple-300 dark:border-purple-800"
+                                      : "bg-indigo-100 dark:bg-indigo-950/70 text-indigo-900 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-800"
+                                  }`}
+                                  title={`${ev.horaInicio ? `[${ev.horaInicio}] ` : ""}${ev.title}`}
+                                >
+                                  {hasTime && (
+                                    <span className="font-mono text-[10px] font-bold opacity-90 shrink-0 tabular-nums">
+                                      {ev.horaInicio}
+                                    </span>
+                                  )}
+                                  <span className="truncate">{ev.title}</span>
+                                </div>
+                              );
+                            })}
 
-                          <span className="truncate">{ev.title}</span>
+                            {daySingleEvents.length > 3 && (
+                              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 pl-1 tabular-nums">
+                                +{daySingleEvents.length - 3} mais
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Mobile indicator dots (only for single-day events since multi-day are continuous bars) */}
+                          <div className="flex sm:hidden items-center justify-center gap-1 mt-auto pt-1">
+                            {daySingleEvents.slice(0, 4).map((ev) => (
+                              <span
+                                key={ev.id}
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  ev.isCompleted
+                                    ? "bg-slate-300 dark:bg-slate-600"
+                                    : ev.type === "step"
+                                    ? "bg-purple-500"
+                                    : "bg-indigo-600"
+                                }`}
+                              />
+                            ))}
+                          </div>
                         </div>
                       );
                     })}
-
-                    {dayEvents.length > 3 && (
-                      <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 pl-1 tabular-nums">
-                        +{dayEvents.length - 3} mais
-                      </span>
-                    )}
                   </div>
 
-                  {/* Mobile indicator dots */}
-                  <div className="flex sm:hidden items-center justify-center gap-1 mt-auto pt-1">
-                    {dayEvents.slice(0, 4).map((ev) => (
-                      <span
-                        key={ev.id}
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          ev.isCompleted
-                            ? "bg-slate-300 dark:bg-slate-600"
-                            : ev.type === "step"
-                            ? "bg-purple-500"
-                            : "bg-indigo-600"
-                        }`}
-                      />
-                    ))}
-                  </div>
+                  {/* Continuous Multi-Day Spanning Lines/Bars Overlay */}
+                  {laneCount > 0 && (
+                    <div
+                      className="absolute left-0 right-0 top-[30px] sm:top-[34px] grid grid-cols-7 gap-y-[3px] pointer-events-none z-10"
+                      style={{ gridAutoRows: "21px" }}
+                    >
+                      {segments.map((seg) => {
+                        const ev = seg.event;
+                        const barColors = ev.isCompleted
+                          ? "bg-slate-300 dark:bg-slate-700 text-slate-700 dark:text-slate-300 line-through"
+                          : ev.type === "step"
+                          ? "bg-purple-600 hover:bg-purple-700 text-white dark:bg-purple-600 dark:hover:bg-purple-500"
+                          : ev.categoria === "Datas"
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                          : ev.prioridade === "Alta"
+                          ? "bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-500 dark:hover:bg-indigo-400"
+                          : "bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-500";
+
+                        return (
+                          <div
+                            key={`${ev.uid}_w${weekIdx}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const targetISO = seg.continuesFromPrevWeek
+                                ? week[seg.startCol].dateISO
+                                : ev.effStart;
+                              setSelectedDateISO(targetISO);
+                            }}
+                            style={{
+                              gridColumn: `${seg.startCol + 1} / span ${seg.colSpan}`,
+                              gridRow: `${seg.lane + 1}`,
+                            }}
+                            className={`pointer-events-auto h-[21px] flex items-center justify-between gap-1 px-1.5 sm:px-2 text-[10px] sm:text-[11px] font-bold cursor-pointer transition-colors shadow-2xs select-none overflow-hidden ${
+                              !seg.continuesFromPrevWeek ? "ml-1 rounded-l-md" : "rounded-l-none"
+                            } ${
+                              !seg.continuesToNextWeek ? "mr-1 rounded-r-md" : "rounded-r-none"
+                            } ${barColors}`}
+                            title={`${ev.title} (${formatBrDate(ev.effStart)} → ${formatBrDate(ev.effEnd)})${
+                              ev.horaInicio ? ` · ${ev.horaInicio}${ev.horaFim ? ` - ${ev.horaFim}` : ""}` : ""
+                            }`}
+                          >
+                            <div className="flex items-center gap-1 min-w-0 truncate">
+                              {seg.continuesFromPrevWeek && (
+                                <span className="text-[10px] opacity-80 shrink-0">«</span>
+                              )}
+                              {!seg.continuesFromPrevWeek && ev.horaInicio && (
+                                <span className="font-mono text-[9px] sm:text-[10px] opacity-90 shrink-0 tabular-nums">
+                                  {ev.horaInicio}
+                                </span>
+                              )}
+                              <span className="truncate">{ev.title}</span>
+                            </div>
+                            {seg.continuesToNextWeek && (
+                              <span className="text-[10px] opacity-80 shrink-0">»</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
       ) : (
-        /* Week View Grid with Defined Columns */
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
-          {weekDays.map((dayObj) => {
-            const dayEvents = eventsByDate.get(dayObj.dateISO) || [];
-            const isSelected = dayObj.dateISO === selectedDateISO;
+        /* Week View Grid with Continuous Spanning Multi-Day Strip + Defined Columns */
+        <div className="space-y-3">
+          {/* Desktop Continuous Multi-Day Spanning Strip */}
+          {weekViewLayout.laneCount > 0 && (
+            <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl p-3 border-2 border-slate-300 dark:border-slate-700 shadow-xs">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1.5">
+                <CalendarDays className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Atividades Contínuas da Semana</span>
+              </div>
+              <div className="grid grid-cols-7 gap-x-3 gap-y-1.5">
+                {weekViewLayout.segments.map((seg) => {
+                  const ev = seg.event;
+                  const barColors = ev.isCompleted
+                    ? "bg-slate-300 dark:bg-slate-700 text-slate-700 dark:text-slate-300 line-through"
+                    : ev.type === "step"
+                    ? "bg-purple-600 hover:bg-purple-700 text-white"
+                    : ev.categoria === "Datas"
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                    : "bg-indigo-600 hover:bg-indigo-700 text-white";
 
-            return (
-              <div
-                key={dayObj.dateISO}
-                onClick={() => setSelectedDateISO(dayObj.dateISO)}
-                className={`bg-white dark:bg-slate-900 rounded-2xl p-3 border-2 transition-all flex flex-col justify-between cursor-pointer min-h-[160px] md:min-h-[320px] ${
-                  isSelected
-                    ? "border-indigo-600 dark:border-indigo-400 ring-2 ring-indigo-600/30 shadow-md"
-                    : dayObj.isToday
-                    ? "border-indigo-400 dark:border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/20"
-                    : "border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600"
-                }`}
-              >
-                {/* Day Header */}
-                <div className="flex items-center justify-between pb-2 border-b-2 border-slate-200 dark:border-slate-800">
-                  <div>
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400 block uppercase tracking-wider">
-                      {dayObj.dayName}
-                    </span>
-                    <span
-                      className={`text-base font-bold tabular-nums ${
-                        dayObj.isToday
-                          ? "text-indigo-600 dark:text-indigo-400"
-                          : "text-slate-900 dark:text-slate-100"
-                      }`}
+                  return (
+                    <div
+                      key={`${ev.uid}_weekstrip`}
+                      onClick={() =>
+                        setSelectedDateISO(
+                          seg.continuesFromPrevWeek ? weekDays[seg.startCol].dateISO : ev.effStart
+                        )
+                      }
+                      style={{
+                        gridColumn: `${seg.startCol + 1} / span ${seg.colSpan}`,
+                        gridRow: `${seg.lane + 1}`,
+                      }}
+                      className={`h-[24px] flex items-center justify-between gap-2 px-2.5 text-xs font-bold cursor-pointer transition-colors shadow-xs overflow-hidden ${
+                        !seg.continuesFromPrevWeek ? "rounded-l-lg" : "rounded-l-none"
+                      } ${
+                        !seg.continuesToNextWeek ? "rounded-r-lg" : "rounded-r-none"
+                      } ${barColors}`}
+                      title={`${ev.title} (${formatBrDate(ev.effStart)} → ${formatBrDate(ev.effEnd)})`}
                     >
-                      {dayObj.dayNumber} {dayObj.monthName}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openQuickAddForDate(dayObj.dateISO);
-                    }}
-                    className="p-1 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                    title="Adicionar tarefa neste dia"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Day Items List with Times */}
-                <div className="flex-1 py-2 space-y-1.5 overflow-y-auto max-h-[240px]">
-                  {dayEvents.length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-center p-2">
-                      <span className="text-xs text-slate-400 dark:text-slate-500">Sem atividades</span>
+                      <div className="flex items-center gap-1.5 min-w-0 truncate">
+                        {seg.continuesFromPrevWeek && <span className="opacity-80">«</span>}
+                        {ev.horaInicio && (
+                          <span className="font-mono text-[10px] opacity-90 shrink-0">
+                            {ev.horaInicio}
+                          </span>
+                        )}
+                        <span className="truncate">{ev.title}</span>
+                      </div>
+                      <span className="text-[10px] font-normal opacity-85 shrink-0">
+                        {formatBrDate(ev.effStart).slice(0, 5)} → {formatBrDate(ev.effEnd).slice(0, 5)}
+                        {seg.continuesToNextWeek ? " »" : ""}
+                      </span>
                     </div>
-                  ) : (
-                    dayEvents.map((ev) => (
-                      <div
-                        key={ev.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedDateISO(dayObj.dateISO);
-                        }}
-                        className={`p-2 rounded-xl text-xs transition-all border ${
-                          ev.isCompleted
-                            ? "bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 line-through"
-                            : ev.type === "step"
-                            ? "bg-purple-50 dark:bg-purple-950/60 border-purple-300 dark:border-purple-800 text-purple-900 dark:text-purple-200"
-                            : "bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200"
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+            {weekDays.map((dayObj) => {
+              const allDayEvents = eventsByDate.get(dayObj.dateISO) || [];
+              const daySingleEvents = singleEventsByDate.get(dayObj.dateISO) || [];
+              const isSelected = dayObj.dateISO === selectedDateISO;
+
+              return (
+                <div
+                  key={dayObj.dateISO}
+                  onClick={() => setSelectedDateISO(dayObj.dateISO)}
+                  className={`bg-white dark:bg-slate-900 rounded-2xl p-3 border-2 transition-all flex flex-col justify-between cursor-pointer min-h-[160px] md:min-h-[300px] ${
+                    isSelected
+                      ? "border-indigo-600 dark:border-indigo-400 ring-2 ring-indigo-600/30 shadow-md"
+                      : dayObj.isToday
+                      ? "border-indigo-400 dark:border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/20"
+                      : "border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600"
+                  }`}
+                >
+                  {/* Day Header */}
+                  <div className="flex items-center justify-between pb-2 border-b-2 border-slate-200 dark:border-slate-800">
+                    <div>
+                      <span className="text-xs font-bold text-slate-600 dark:text-slate-400 block uppercase tracking-wider">
+                        {dayObj.dayName}
+                      </span>
+                      <span
+                        className={`text-base font-bold tabular-nums ${
+                          dayObj.isToday
+                            ? "text-indigo-600 dark:text-indigo-400"
+                            : "text-slate-900 dark:text-slate-100"
                         }`}
                       >
-                        <div className="flex items-start gap-1.5">
-                          <button
-                            onClick={async (e) => {
+                        {dayObj.dayNumber} {dayObj.monthName}
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openQuickAddForDate(dayObj.dateISO);
+                      }}
+                      className="p-1 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                      title="Adicionar tarefa neste dia"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Day Items List (Desktop shows single-day items since multi-day are in the continuous strip above; mobile shows all) */}
+                  <div className="flex-1 py-2 space-y-1.5 overflow-y-auto max-h-[240px]">
+                    {allDayEvents.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-center p-2">
+                        <span className="text-xs text-slate-400 dark:text-slate-500">Sem atividades</span>
+                      </div>
+                    ) : (
+                      <>
+                        {/* On desktop, if only multi-day events exist on this day, show subtle note */}
+                        {daySingleEvents.length === 0 && (
+                          <div className="hidden md:flex h-full items-center justify-center text-center p-2">
+                            <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                              Atividade contínua acima
+                            </span>
+                          </div>
+                        )}
+
+                        {allDayEvents.map((ev) => (
+                          <div
+                            key={ev.id}
+                            onClick={(e) => {
                               e.stopPropagation();
-                              if (ev.type === "task" && ev.taskData) {
-                                await onToggleTaskStatus(
-                                  ev.taskData.id,
-                                  ev.taskData.status
-                                );
-                              } else if (ev.type === "step" && ev.projetoId && ev.stepData) {
-                                await onToggleProjectStep(ev.projetoId, ev.stepData);
-                              }
+                              setSelectedDateISO(dayObj.dateISO);
                             }}
-                            className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 cursor-pointer ${
+                            className={`p-2 rounded-xl text-xs transition-all border ${
+                              ev.isMultiDay ? "md:hidden" : ""
+                            } ${
                               ev.isCompleted
-                                ? "bg-emerald-500 border-emerald-500 text-white"
-                                : "border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-indigo-500"
+                                ? "bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 line-through"
+                                : ev.type === "step"
+                                ? "bg-purple-50 dark:bg-purple-950/60 border-purple-300 dark:border-purple-800 text-purple-900 dark:text-purple-200"
+                                : "bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200"
                             }`}
                           >
-                            {ev.isCompleted && <Check className="w-3 h-3 stroke-[3]" />}
-                          </button>
+                            <div className="flex items-start gap-1.5">
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (ev.type === "task" && ev.taskData) {
+                                    await onToggleTaskStatus(
+                                      ev.taskData.id,
+                                      ev.taskData.status
+                                    );
+                                  } else if (ev.type === "step" && ev.projetoId && ev.stepData) {
+                                    await onToggleProjectStep(ev.projetoId, ev.stepData);
+                                  }
+                                }}
+                                className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 cursor-pointer ${
+                                  ev.isCompleted
+                                    ? "bg-emerald-500 border-emerald-500 text-white"
+                                    : "border-slate-400 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-indigo-500"
+                                }`}
+                              >
+                                {ev.isCompleted && <Check className="w-3 h-3 stroke-[3]" />}
+                              </button>
 
-                          <div className="min-w-0 flex-1">
-                            {/* Time badge if specified */}
-                            {ev.horaInicio && (
-                              <div className="flex items-center gap-1 text-[10px] font-mono font-bold text-indigo-700 dark:text-indigo-300 mb-0.5 tabular-nums">
-                                <Clock className="w-3 h-3" />
-                                <span>
-                                  {ev.horaInicio}
-                                  {ev.horaFim ? ` - ${ev.horaFim}` : ""}
-                                </span>
+                              <div className="min-w-0 flex-1">
+                                {ev.horaInicio && (
+                                  <div className="flex items-center gap-1 text-[10px] font-mono font-bold text-indigo-700 dark:text-indigo-300 mb-0.5 tabular-nums">
+                                    <Clock className="w-3 h-3" />
+                                    <span>
+                                      {ev.horaInicio}
+                                      {ev.horaFim ? ` - ${ev.horaFim}` : ""}
+                                    </span>
+                                  </div>
+                                )}
+
+                                <p className="font-semibold truncate leading-tight">{ev.title}</p>
+
+                                {ev.isMultiDay && ev.dataInicio && ev.dataFim && (
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                    📅 {formatBrDate(ev.dataInicio)} → {formatBrDate(ev.dataFim)}
+                                  </p>
+                                )}
+
+                                {ev.type === "step" && ev.projetoTitulo && (
+                                  <p className="text-[10px] text-purple-700 dark:text-purple-300 truncate mt-0.5">
+                                    📁 {ev.projetoTitulo}
+                                  </p>
+                                )}
                               </div>
-                            )}
-
-                            <p className="font-semibold truncate leading-tight">{ev.title}</p>
-
-                            {ev.isMultiDay && (
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                {ev.isStart ? "▶ Início" : ev.isEnd ? "🏁 Término" : "─ Em andamento"}
-                              </p>
-                            )}
-
-                            {ev.type === "step" && ev.projetoTitulo && (
-                              <p className="text-[10px] text-purple-700 dark:text-purple-300 truncate mt-0.5">
-                                📁 {ev.projetoTitulo}
-                              </p>
-                            )}
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
 
-                {/* Day Summary */}
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                  <span className="tabular-nums">
-                    {dayEvents.filter((ev) => !ev.isCompleted).length} pendente(s)
-                  </span>
-                  {dayObj.isToday && (
-                    <span className="text-indigo-600 dark:text-indigo-400 font-bold text-[10px] uppercase">
-                      Hoje
+                  {/* Day Summary */}
+                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+                    <span className="tabular-nums">
+                      {allDayEvents.filter((ev) => !ev.isCompleted).length} pendente(s)
                     </span>
-                  )}
+                    {dayObj.isToday && (
+                      <span className="text-indigo-600 dark:text-indigo-400 font-bold text-[10px] uppercase">
+                        Hoje
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -1169,11 +1438,10 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
                   </label>
                   <input
                     type="date"
-                    required
                     value={quickAddStartDate}
                     onChange={(e) => {
                       setQuickAddStartDate(e.target.value);
-                      if (quickAddEndDate < e.target.value) {
+                      if (quickAddEndDate && e.target.value && quickAddEndDate < e.target.value) {
                         setQuickAddEndDate(e.target.value);
                       }
                     }}
@@ -1183,15 +1451,26 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">
-                    Data de Término *
+                    Data de Término (opcional)
                   </label>
-                  <input
-                    type="date"
-                    required
-                    value={quickAddEndDate}
-                    onChange={(e) => setQuickAddEndDate(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="date"
+                      value={quickAddEndDate}
+                      onChange={(e) => setQuickAddEndDate(e.target.value)}
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+                    />
+                    {quickAddEndDate && (
+                      <button
+                        type="button"
+                        onClick={() => setQuickAddEndDate("")}
+                        className="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-xs cursor-pointer"
+                        title="Remover data de término"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 

@@ -27,7 +27,7 @@ interface Tarefa {
   categoria: string;
   prioridade: "Alta" | "Média" | "Baixa";
   data_inicio?: string; // YYYY-MM-DD
-  data_vencimento: string; // YYYY-MM-DD
+  data_vencimento?: string; // YYYY-MM-DD (opcional)
   hora_inicio?: string; // HH:mm
   hora_fim?: string; // HH:mm
   status: "Pendente" | "Concluída";
@@ -306,8 +306,8 @@ app.post("/api/tasks", (req, res) => {
   const validPriorities: ("Alta" | "Média" | "Baixa")[] = ["Alta", "Média", "Baixa"];
   const finalPriority = validPriorities.includes(prioridade) ? prioridade : "Média";
 
-  const dueDate = data_vencimento || data_inicio || getTodayString();
-  const startDate = data_inicio || dueDate;
+  const dueDate = data_vencimento ? String(data_vencimento).trim() : "";
+  const startDate = data_inicio ? String(data_inicio).trim() : dueDate;
 
   const novaTarefa: Tarefa = {
     id: db.nextId++,
