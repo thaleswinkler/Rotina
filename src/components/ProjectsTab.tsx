@@ -93,9 +93,19 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
   const [novaFaseInput, setNovaFaseInput] = useState("");
   const [novoPassoInput, setNovoPassoInput] = useState("");
   const [novoPassoTipo, setNovoPassoTipo] = useState("");
+  const [novoPassoInicio, setNovoPassoInicio] = useState("");
   const [novoPassoPrazo, setNovoPassoPrazo] = useState("");
+  const [novoPassoHoraInicio, setNovoPassoHoraInicio] = useState("");
+  const [novoPassoHoraFim, setNovoPassoHoraFim] = useState("");
   const [passosTemp, setPassosTemp] = useState<
-    Array<{ titulo: string; tipo: string; data_limite?: string }>
+    Array<{
+      titulo: string;
+      tipo: string;
+      data_inicio?: string;
+      data_limite?: string;
+      hora_inicio?: string;
+      hora_fim?: string;
+    }>
   >([]);
   const [isSuggestingWithAI, setIsSuggestingWithAI] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -103,11 +113,17 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
   // Inline add step per project in list view
   const [inlineStepInputs, setInlineStepInputs] = useState<{ [projectId: string]: string }>({});
   const [inlineStepTypes, setInlineStepTypes] = useState<{ [projectId: string]: string }>({});
+  const [inlineStepStartDates, setInlineStepStartDates] = useState<{ [projectId: string]: string }>({});
   const [inlineStepDates, setInlineStepDates] = useState<{ [projectId: string]: string }>({});
+  const [inlineStepStartTimes, setInlineStepStartTimes] = useState<{ [projectId: string]: string }>({});
+  const [inlineStepEndTimes, setInlineStepEndTimes] = useState<{ [projectId: string]: string }>({});
   const [editingStepDate, setEditingStepDate] = useState<{
     projectId: string | number;
     stepId: string | number;
+    tempStartDate: string;
     tempDate: string;
+    tempStartTime: string;
+    tempEndTime: string;
   } | null>(null);
 
   // Filter state inside projects
@@ -158,11 +174,17 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
       {
         titulo: novoPassoInput.trim(),
         tipo: finalTipo,
+        data_inicio: novoPassoInicio || "",
         data_limite: novoPassoPrazo || "",
+        hora_inicio: novoPassoHoraInicio || "",
+        hora_fim: novoPassoHoraFim || "",
       },
     ]);
     setNovoPassoInput("");
+    setNovoPassoInicio("");
     setNovoPassoPrazo("");
+    setNovoPassoHoraInicio("");
+    setNovoPassoHoraFim("");
   };
 
   const handleRemovePassoTemp = (index: number) => {
@@ -216,7 +238,10 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
         passosFinal.push({
           titulo: novoPassoInput.trim(),
           tipo: finalTipo,
+          data_inicio: novoPassoInicio || "",
           data_limite: novoPassoPrazo || "",
+          hora_inicio: novoPassoHoraInicio || "",
+          hora_fim: novoPassoHoraFim || "",
         });
       }
 
@@ -233,7 +258,10 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
         tipo: p.tipo || "Geral",
         concluido: false,
         ordem: idx + 1,
+        data_inicio: p.data_inicio || "",
         data_limite: p.data_limite || "",
+        hora_inicio: p.hora_inicio || "",
+        hora_fim: p.hora_fim || "",
       }));
 
       const newDocId = await addProjetoFirestore({
@@ -288,7 +316,10 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
       setFasesPersonalizadas([]);
       setNovaFaseInput("");
       setNovoPassoInput("");
+      setNovoPassoInicio("");
       setNovoPassoPrazo("");
+      setNovoPassoHoraInicio("");
+      setNovoPassoHoraFim("");
       setShowNovoForm(false);
       onShowToast("🚀 Projeto salvo no mapa mental com sucesso!", "success");
     } catch (err: any) {
@@ -359,17 +390,25 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
     }
   };
 
-  // Update step deadline
+  // Update step deadline & schedule
   const handleUpdateStepDate = async (
     projectId: string | number,
     stepId: string | number,
-    newDataLimite: string
+    newDataLimite: string,
+    extra?: { data_inicio?: string; hora_inicio?: string; hora_fim?: string }
   ) => {
+    const scheduleUpdates: Partial<PassoProjeto> = {
+      data_limite: newDataLimite,
+      ...(extra?.data_inicio !== undefined ? { data_inicio: extra.data_inicio } : {}),
+      ...(extra?.hora_inicio !== undefined ? { hora_inicio: extra.hora_inicio } : {}),
+      ...(extra?.hora_fim !== undefined ? { hora_fim: extra.hora_fim } : {}),
+    };
+
     onSetProjetos?.((prev) =>
       prev.map((p) => {
         if (String(p.id) !== String(projectId)) return p;
         const updatedPassos = (p.passos || []).map((s) =>
-          String(s.id) === String(stepId) ? { ...s, data_limite: newDataLimite } : s
+          String(s.id) === String(stepId) ? { ...s, ...scheduleUpdates } : s
         );
         return { ...p, passos: updatedPassos };
       })
@@ -378,14 +417,14 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
     try {
       const proj = projetos.find((p) => String(p.id) === String(projectId));
       if (proj) {
-        await updatePassoFirestore(projectId, stepId, proj.passos, { data_limite: newDataLimite });
+        await updatePassoFirestore(projectId, stepId, proj.passos, scheduleUpdates);
       }
       fetch(`/api/projects/${projectId}/passos/${stepId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data_limite: newDataLimite }),
+        body: JSON.stringify(scheduleUpdates),
       }).catch(() => {});
-      onShowToast("📅 Prazo da etapa atualizado!", "success");
+      onShowToast("📅 Data e horário da tarefa atualizados!", "success");
     } catch (err) {
       console.error(err);
     }
@@ -459,7 +498,10 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
     projectId: string | number,
     titulo: string,
     tipo: string,
-    dataLimite?: string
+    dataLimite?: string,
+    dataInicio?: string,
+    horaInicio?: string,
+    horaFim?: string
   ) => {
     const newStep: PassoProjeto = {
       id: `step_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -468,7 +510,10 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
       tipo: tipo || "Geral",
       concluido: false,
       ordem: 999,
+      data_inicio: dataInicio || "",
       data_limite: dataLimite || "",
+      hora_inicio: horaInicio || "",
+      hora_fim: horaFim || "",
     };
 
     onSetProjetos?.((prev) =>
@@ -489,12 +534,28 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
     try {
       const proj = projetos.find((p) => String(p.id) === String(projectId));
       if (proj) {
-        await addPassoFirestore(projectId, titulo, proj.passos, dataLimite, tipo);
+        await addPassoFirestore(
+          projectId,
+          titulo,
+          proj.passos,
+          dataLimite,
+          tipo,
+          dataInicio,
+          horaInicio,
+          horaFim
+        );
       }
       fetch(`/api/projects/${projectId}/passos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ titulo, data_limite: dataLimite, tipo }),
+        body: JSON.stringify({
+          titulo,
+          data_inicio: dataInicio,
+          data_limite: dataLimite,
+          hora_inicio: horaInicio,
+          hora_fim: horaFim,
+          tipo,
+        }),
       }).catch(() => {});
       onShowToast(`Tarefa adicionada em "${tipo}"!`, "success");
     } catch (err) {
@@ -802,24 +863,23 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                 </button>
               </div>
 
-              {/* Input for single step with Tipo selector */}
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type="text"
-                  placeholder="Ex: Orçar materiais com 3 fornecedores..."
-                  value={novoPassoInput}
-                  onChange={(e) => setNovoPassoInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddPassoTemp();
-                    }
-                  }}
-                  className="flex-1 px-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 placeholder:text-slate-400"
-                />
+              {/* Input for single step with Tipo selector + Dates & Hours */}
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ex: Orçar materiais com 3 fornecedores..."
+                    value={novoPassoInput}
+                    onChange={(e) => setNovoPassoInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddPassoTemp();
+                      }
+                    }}
+                    className="flex-1 px-3.5 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 placeholder:text-slate-400"
+                  />
 
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {/* Tipo de Tarefa / Fase */}
                   <select
                     value={novoPassoTipo || (fasesPersonalizadas[0] || "Geral")}
                     onChange={(e) => setNovoPassoTipo(e.target.value)}
@@ -844,19 +904,6 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                     </optgroup>
                   </select>
 
-                  <div
-                    className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5"
-                    title="Prazo opcional para este passo"
-                  >
-                    <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <input
-                      type="date"
-                      value={novoPassoPrazo}
-                      onChange={(e) => setNovoPassoPrazo(e.target.value)}
-                      className="text-xs bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
-                    />
-                  </div>
-
                   <button
                     type="button"
                     onClick={handleAddPassoTemp}
@@ -864,6 +911,59 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                   >
                     + Passo
                   </button>
+                </div>
+
+                {/* Datas (Início e Término opcional) + Horários (Início e Término opcional) */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5">
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">
+                      📅 Data de Início
+                    </label>
+                    <input
+                      type="date"
+                      value={novoPassoInicio}
+                      onChange={(e) => {
+                        setNovoPassoInicio(e.target.value);
+                        if (novoPassoPrazo && e.target.value && novoPassoPrazo < e.target.value) {
+                          setNovoPassoPrazo(e.target.value);
+                        }
+                      }}
+                      className="w-full text-xs bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
+                    />
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5">
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">
+                      🏁 Data de Término (opc.)
+                    </label>
+                    <input
+                      type="date"
+                      value={novoPassoPrazo}
+                      onChange={(e) => setNovoPassoPrazo(e.target.value)}
+                      className="w-full text-xs bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
+                    />
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5">
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">
+                      ⏰ Horário Início (opc.)
+                    </label>
+                    <input
+                      type="time"
+                      value={novoPassoHoraInicio}
+                      onChange={(e) => setNovoPassoHoraInicio(e.target.value)}
+                      className="w-full text-xs bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
+                    />
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5">
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">
+                      ⏰ Horário Término (opc.)
+                    </label>
+                    <input
+                      type="time"
+                      value={novoPassoHoraFim}
+                      onChange={(e) => setNovoPassoHoraFim(e.target.value)}
+                      className="w-full text-xs bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -875,7 +975,7 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                       key={idx}
                       className="flex items-center justify-between px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="w-4 h-4 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold flex items-center justify-center">
                           {idx + 1}
                         </span>
@@ -883,10 +983,19 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                           {passo.tipo}
                         </span>
                         <span className="font-medium text-slate-800">{passo.titulo}</span>
-                        {passo.data_limite && (
+                        {(passo.data_inicio || passo.data_limite) && (
                           <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-semibold flex items-center gap-1">
                             <Calendar className="w-3 h-3 text-slate-400" />
-                            {formatBrDate(passo.data_limite)}
+                            {passo.data_inicio && passo.data_limite && passo.data_inicio !== passo.data_limite
+                              ? `${formatBrDate(passo.data_inicio)} → ${formatBrDate(passo.data_limite)}`
+                              : formatBrDate(passo.data_limite || passo.data_inicio)}
+                          </span>
+                        )}
+                        {(passo.hora_inicio || passo.hora_fim) && (
+                          <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-500" />
+                            {passo.hora_inicio || ""}
+                            {passo.hora_fim ? ` - ${passo.hora_fim}` : ""}
                           </span>
                         )}
                       </div>
@@ -1249,85 +1358,163 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                                   </span>
                                 </label>
 
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  {/* Prazo */}
+                                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                                  {/* Prazo & Horário */}
                                   {editingStepDate?.projectId === proj.id &&
                                   editingStepDate?.stepId === step.id ? (
-                                    <div className="flex items-center gap-1 bg-white border border-indigo-400 rounded-lg p-1 shadow-md ring-2 ring-indigo-500/20 z-10">
-                                      <input
-                                        type="date"
-                                        value={editingStepDate.tempDate}
-                                        autoFocus
-                                        onChange={(e) => {
-                                          const val = e.target.value;
-                                          setEditingStepDate((prev) =>
-                                            prev ? { ...prev, tempDate: val } : null
-                                          );
-                                        }}
-                                        onKeyDown={(e) => {
-                                          if (e.key === "Enter") {
-                                            e.preventDefault();
-                                            handleUpdateStepDate(
-                                              proj.id,
-                                              step.id,
-                                              editingStepDate.tempDate
-                                            );
-                                            setEditingStepDate(null);
-                                          } else if (e.key === "Escape") {
-                                            setEditingStepDate(null);
-                                          }
-                                        }}
-                                        className="text-xs px-1.5 py-0.5 border border-slate-200 rounded-md focus:outline-hidden text-slate-800 cursor-pointer"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          handleUpdateStepDate(
-                                            proj.id,
-                                            step.id,
-                                            editingStepDate.tempDate
-                                          );
-                                          setEditingStepDate(null);
-                                        }}
-                                        className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-semibold cursor-pointer"
-                                      >
-                                        Salvar
-                                      </button>
-                                      {step.data_limite && (
+                                    <div className="flex flex-col gap-1.5 bg-white border border-indigo-400 rounded-xl p-2 shadow-md ring-2 ring-indigo-500/20 z-10">
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                                        <div>
+                                          <label className="block text-[9px] font-bold uppercase text-slate-500">Início</label>
+                                          <input
+                                            type="date"
+                                            value={editingStepDate.tempStartDate}
+                                            autoFocus
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              setEditingStepDate((prev) =>
+                                                prev ? { ...prev, tempStartDate: val } : null
+                                              );
+                                            }}
+                                            className="w-full text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md focus:outline-hidden text-slate-800 cursor-pointer"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[9px] font-bold uppercase text-slate-500">Término (opc.)</label>
+                                          <input
+                                            type="date"
+                                            value={editingStepDate.tempDate}
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              setEditingStepDate((prev) =>
+                                                prev ? { ...prev, tempDate: val } : null
+                                              );
+                                            }}
+                                            className="w-full text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md focus:outline-hidden text-slate-800 cursor-pointer"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[9px] font-bold uppercase text-slate-500">Hora Início</label>
+                                          <input
+                                            type="time"
+                                            value={editingStepDate.tempStartTime}
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              setEditingStepDate((prev) =>
+                                                prev ? { ...prev, tempStartTime: val } : null
+                                              );
+                                            }}
+                                            className="w-full text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md focus:outline-hidden text-slate-800 cursor-pointer"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[9px] font-bold uppercase text-slate-500">Hora Término</label>
+                                          <input
+                                            type="time"
+                                            value={editingStepDate.tempEndTime}
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              setEditingStepDate((prev) =>
+                                                prev ? { ...prev, tempEndTime: val } : null
+                                              );
+                                            }}
+                                            className="w-full text-[11px] px-1.5 py-0.5 border border-slate-200 rounded-md focus:outline-hidden text-slate-800 cursor-pointer"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center justify-end gap-1">
+                                        {(step.data_inicio || step.data_limite || step.hora_inicio || step.hora_fim) && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              handleUpdateStepDate(proj.id, step.id, "", {
+                                                data_inicio: "",
+                                                hora_inicio: "",
+                                                hora_fim: "",
+                                              });
+                                              setEditingStepDate(null);
+                                            }}
+                                            className="px-1.5 py-0.5 text-xs text-rose-600 hover:bg-rose-50 rounded-md cursor-pointer"
+                                          >
+                                            Limpar
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingStepDate(null)}
+                                          className="px-1.5 py-0.5 text-xs text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
+                                        >
+                                          Cancelar
+                                        </button>
                                         <button
                                           type="button"
                                           onClick={() => {
-                                            handleUpdateStepDate(proj.id, step.id, "");
+                                            handleUpdateStepDate(
+                                              proj.id,
+                                              step.id,
+                                              editingStepDate.tempDate,
+                                              {
+                                                data_inicio: editingStepDate.tempStartDate,
+                                                hora_inicio: editingStepDate.tempStartTime,
+                                                hora_fim: editingStepDate.tempEndTime,
+                                              }
+                                            );
                                             setEditingStepDate(null);
                                           }}
-                                          className="px-1.5 py-0.5 text-xs text-rose-600 hover:bg-rose-50 rounded-md"
+                                          className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-semibold cursor-pointer"
                                         >
-                                          Limpar
+                                          Salvar
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (step.data_inicio || step.data_limite || step.hora_inicio || step.hora_fim) ? (
+                                    <div className="flex flex-wrap items-center gap-1">
+                                      {(step.data_inicio || step.data_limite) && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setEditingStepDate({
+                                              projectId: proj.id,
+                                              stepId: step.id,
+                                              tempStartDate: step.data_inicio || "",
+                                              tempDate: step.data_limite || "",
+                                              tempStartTime: step.hora_inicio || "",
+                                              tempEndTime: step.hora_fim || "",
+                                            })
+                                          }
+                                          className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center gap-1 transition-colors cursor-pointer"
+                                        >
+                                          <Calendar className="w-3 h-3 text-indigo-500" />
+                                          <span>
+                                            {step.data_inicio && step.data_limite && step.data_inicio !== step.data_limite
+                                              ? `${formatBrDate(step.data_inicio)} → ${formatBrDate(step.data_limite)}`
+                                              : formatBrDate(step.data_limite || step.data_inicio)}
+                                          </span>
                                         </button>
                                       )}
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditingStepDate(null)}
-                                        className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
-                                      >
-                                        ✕
-                                      </button>
+                                      {(step.hora_inicio || step.hora_fim) && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setEditingStepDate({
+                                              projectId: proj.id,
+                                              stepId: step.id,
+                                              tempStartDate: step.data_inicio || "",
+                                              tempDate: step.data_limite || "",
+                                              tempStartTime: step.hora_inicio || "",
+                                              tempEndTime: step.hora_fim || "",
+                                            })
+                                          }
+                                          className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 flex items-center gap-1 transition-colors cursor-pointer"
+                                        >
+                                          <Clock className="w-3 h-3 text-amber-500" />
+                                          <span>
+                                            {step.hora_inicio || ""}
+                                            {step.hora_fim ? ` - ${step.hora_fim}` : ""}
+                                          </span>
+                                        </button>
+                                      )}
                                     </div>
-                                  ) : step.data_limite ? (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setEditingStepDate({
-                                          projectId: proj.id,
-                                          stepId: step.id,
-                                          tempDate: step.data_limite || "",
-                                        })
-                                      }
-                                      className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center gap-1 transition-colors cursor-pointer"
-                                    >
-                                      <Calendar className="w-3 h-3 text-indigo-500" />
-                                      <span>{formatBrDate(step.data_limite)}</span>
-                                    </button>
                                   ) : (
                                     <button
                                       type="button"
@@ -1335,13 +1522,16 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                                         setEditingStepDate({
                                           projectId: proj.id,
                                           stepId: step.id,
+                                          tempStartDate: "",
                                           tempDate: "",
+                                          tempStartTime: "",
+                                          tempEndTime: "",
                                         })
                                       }
                                       className="text-[11px] font-medium px-1.5 py-0.5 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors flex items-center gap-1 cursor-pointer"
                                     >
                                       <Calendar className="w-3 h-3" />
-                                      <span>+ Prazo</span>
+                                      <span>+ Data / Horário</span>
                                     </button>
                                   )}
 
@@ -1353,7 +1543,7 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                                     }
                                     className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-1.5 py-0.5 cursor-pointer"
                                   >
-                                    {PRESET_TIPOS.map((t) => (
+                                    {Array.from(new Set([...(proj.tipos_tarefas || []), ...PRESET_TIPOS])).map((t) => (
                                       <option key={t} value={t}>
                                         {t}
                                       </option>
@@ -1377,55 +1567,109 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                   </div>
 
                   {/* Inline Add Step Form */}
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2 border-t border-slate-100">
-                    <input
-                      type="text"
-                      placeholder="Adicionar nova etapa a este projeto..."
-                      value={inlineStepInputs[proj.id] || ""}
-                      onChange={(e) =>
-                        setInlineStepInputs((prev) => ({
-                          ...prev,
-                          [proj.id]: e.target.value,
-                        }))
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          const text = (inlineStepInputs[proj.id] || "").trim();
-                          const tp = inlineStepTypes[proj.id] || "Geral";
-                          const dt = inlineStepDates[proj.id] || "";
-                          if (text) {
-                            handleAddStepToType(proj.id, text, tp, dt);
-                            setInlineStepInputs((p) => ({ ...p, [proj.id]: "" }));
-                          }
+                  <div className="pt-2 border-t border-slate-100 space-y-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Adicionar nova tarefa/etapa a este projeto..."
+                        value={inlineStepInputs[proj.id] || ""}
+                        onChange={(e) =>
+                          setInlineStepInputs((prev) => ({
+                            ...prev,
+                            [proj.id]: e.target.value,
+                          }))
                         }
-                      }}
-                      className="flex-1 px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 placeholder:text-slate-400"
-                    />
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const text = (inlineStepInputs[proj.id] || "").trim();
+                            const fallbackPhase = (proj.tipos_tarefas && proj.tipos_tarefas[0]) || "Geral";
+                            const tp = inlineStepTypes[proj.id] || fallbackPhase;
+                            const dtInicio = inlineStepStartDates[proj.id] || "";
+                            const dt = inlineStepDates[proj.id] || "";
+                            const hrInicio = inlineStepStartTimes[proj.id] || "";
+                            const hrFim = inlineStepEndTimes[proj.id] || "";
+                            if (text) {
+                              handleAddStepToType(proj.id, text, tp, dt, dtInicio, hrInicio, hrFim);
+                              setInlineStepInputs((p) => ({ ...p, [proj.id]: "" }));
+                              setInlineStepStartDates((p) => ({ ...p, [proj.id]: "" }));
+                              setInlineStepDates((p) => ({ ...p, [proj.id]: "" }));
+                              setInlineStepStartTimes((p) => ({ ...p, [proj.id]: "" }));
+                              setInlineStepEndTimes((p) => ({ ...p, [proj.id]: "" }));
+                            }
+                          }
+                        }}
+                        className="flex-1 px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 placeholder:text-slate-400"
+                      />
 
-                    <select
-                      value={inlineStepTypes[proj.id] || "Planejamento"}
-                      onChange={(e) =>
-                        setInlineStepTypes((prev) => ({
-                          ...prev,
-                          [proj.id]: e.target.value,
-                        }))
-                      }
-                      className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 cursor-pointer"
-                    >
-                      {PRESET_TIPOS.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-
-                    <div className="flex items-center gap-1.5">
-                      <div
-                        className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1"
-                        title="Prazo opcional desta etapa"
+                      <select
+                        value={inlineStepTypes[proj.id] || (proj.tipos_tarefas && proj.tipos_tarefas[0]) || "Geral"}
+                        onChange={(e) =>
+                          setInlineStepTypes((prev) => ({
+                            ...prev,
+                            [proj.id]: e.target.value,
+                          }))
+                        }
+                        className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 cursor-pointer"
                       >
-                        <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        {Array.from(new Set([...(proj.tipos_tarefas || []), ...PRESET_TIPOS])).map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const text = (inlineStepInputs[proj.id] || "").trim();
+                          const fallbackPhase = (proj.tipos_tarefas && proj.tipos_tarefas[0]) || "Geral";
+                          const tp = inlineStepTypes[proj.id] || fallbackPhase;
+                          const dtInicio = inlineStepStartDates[proj.id] || "";
+                          const dt = inlineStepDates[proj.id] || "";
+                          const hrInicio = inlineStepStartTimes[proj.id] || "";
+                          const hrFim = inlineStepEndTimes[proj.id] || "";
+                          if (text) {
+                            handleAddStepToType(proj.id, text, tp, dt, dtInicio, hrInicio, hrFim);
+                            setInlineStepInputs((p) => ({ ...p, [proj.id]: "" }));
+                            setInlineStepStartDates((p) => ({ ...p, [proj.id]: "" }));
+                            setInlineStepDates((p) => ({ ...p, [proj.id]: "" }));
+                            setInlineStepStartTimes((p) => ({ ...p, [proj.id]: "" }));
+                            setInlineStepEndTimes((p) => ({ ...p, [proj.id]: "" }));
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold cursor-pointer shrink-0 flex items-center justify-center gap-1"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Adicionar</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
+                        <label className="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">
+                          📅 Data Início
+                        </label>
+                        <input
+                          type="date"
+                          value={inlineStepStartDates[proj.id] || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setInlineStepStartDates((prev) => ({
+                              ...prev,
+                              [proj.id]: val,
+                            }));
+                            if (inlineStepDates[proj.id] && val && inlineStepDates[proj.id] < val) {
+                              setInlineStepDates((prev) => ({ ...prev, [proj.id]: val }));
+                            }
+                          }}
+                          className="w-full text-xs bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
+                        />
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
+                        <label className="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">
+                          🏁 Data Término (opc.)
+                        </label>
                         <input
                           type="date"
                           value={inlineStepDates[proj.id] || ""}
@@ -1435,24 +1679,41 @@ export const ProjectsTab: React.FC<ProjectsTabProps> = ({
                               [proj.id]: e.target.value,
                             }))
                           }
-                          className="text-xs bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
+                          className="w-full text-xs bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
                         />
                       </div>
-                      <button
-                        onClick={() => {
-                          const text = (inlineStepInputs[proj.id] || "").trim();
-                          const tp = inlineStepTypes[proj.id] || "Geral";
-                          const dt = inlineStepDates[proj.id] || "";
-                          if (text) {
-                            handleAddStepToType(proj.id, text, tp, dt);
-                            setInlineStepInputs((p) => ({ ...p, [proj.id]: "" }));
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
+                        <label className="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">
+                          ⏰ Hora Início (opc.)
+                        </label>
+                        <input
+                          type="time"
+                          value={inlineStepStartTimes[proj.id] || ""}
+                          onChange={(e) =>
+                            setInlineStepStartTimes((prev) => ({
+                              ...prev,
+                              [proj.id]: e.target.value,
+                            }))
                           }
-                        }}
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold cursor-pointer shrink-0 flex items-center gap-1"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Adicionar</span>
-                      </button>
+                          className="w-full text-xs bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
+                        />
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
+                        <label className="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">
+                          ⏰ Hora Término (opc.)
+                        </label>
+                        <input
+                          type="time"
+                          value={inlineStepEndTimes[proj.id] || ""}
+                          onChange={(e) =>
+                            setInlineStepEndTimes((prev) => ({
+                              ...prev,
+                              [proj.id]: e.target.value,
+                            }))
+                          }
+                          className="w-full text-xs bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

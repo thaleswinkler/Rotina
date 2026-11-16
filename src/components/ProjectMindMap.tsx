@@ -29,10 +29,23 @@ interface ProjectMindMapProps {
   projeto: Projeto;
   categorias: string[];
   onToggleStep: (projectId: string | number, step: PassoProjeto) => Promise<void>;
-  onUpdateStepDate: (projectId: string | number, stepId: string | number, date: string) => Promise<void>;
+  onUpdateStepDate: (
+    projectId: string | number,
+    stepId: string | number,
+    date: string,
+    extra?: { data_inicio?: string; hora_inicio?: string; hora_fim?: string }
+  ) => Promise<void>;
   onUpdateStepType: (projectId: string | number, stepId: string | number, tipo: string) => Promise<void>;
   onDeleteStep: (projectId: string | number, stepId: string | number) => Promise<void>;
-  onAddStepToType: (projectId: string | number, titulo: string, tipo: string, dataLimite?: string) => Promise<void>;
+  onAddStepToType: (
+    projectId: string | number,
+    titulo: string,
+    tipo: string,
+    dataLimite?: string,
+    dataInicio?: string,
+    horaInicio?: string,
+    horaFim?: string
+  ) => Promise<void>;
   onAddTipo: (projectId: string | number, novoTipo: string) => Promise<void>;
   onDeleteTipo: (projectId: string | number, tipo: string) => Promise<void>;
   onOpenEditProjectModal: (proj: Projeto) => void;
@@ -178,13 +191,19 @@ export const ProjectMindMap: React.FC<ProjectMindMapProps> = ({
   const [collapsedTypes, setCollapsedTypes] = useState<{ [tipo: string]: boolean }>({});
   const [addingStepToType, setAddingStepToType] = useState<string | null>(null);
   const [newStepText, setNewStepText] = useState("");
+  const [newStepStartDate, setNewStepStartDate] = useState("");
   const [newStepDate, setNewStepDate] = useState("");
+  const [newStepStartTime, setNewStepStartTime] = useState("");
+  const [newStepEndTime, setNewStepEndTime] = useState("");
 
   const [isAddingNewTipo, setIsAddingNewTipo] = useState(false);
   const [newTipoName, setNewTipoName] = useState("");
 
   const [editingStepDateId, setEditingStepDateId] = useState<string | number | null>(null);
+  const [tempStepStartDate, setTempStepStartDate] = useState("");
   const [tempStepDate, setTempStepDate] = useState("");
+  const [tempStepStartTime, setTempStepStartTime] = useState("");
+  const [tempStepEndTime, setTempStepEndTime] = useState("");
 
   // Group steps by their "tipo"
   const groupedSteps = useMemo(() => {
@@ -231,9 +250,20 @@ export const ProjectMindMap: React.FC<ProjectMindMapProps> = ({
 
   const handleCreateStep = async (tipo: string) => {
     if (!newStepText.trim()) return;
-    await onAddStepToType(projeto.id, newStepText.trim(), tipo, newStepDate);
+    await onAddStepToType(
+      projeto.id,
+      newStepText.trim(),
+      tipo,
+      newStepDate,
+      newStepStartDate,
+      newStepStartTime,
+      newStepEndTime
+    );
     setNewStepText("");
+    setNewStepStartDate("");
     setNewStepDate("");
+    setNewStepStartTime("");
+    setNewStepEndTime("");
     setAddingStepToType(null);
   };
 
@@ -607,14 +637,15 @@ export const ProjectMindMap: React.FC<ProjectMindMapProps> = ({
 
                         {/* Inline form to add step to this specific type */}
                         {addingStepToType === tipo && (
-                          <div className="p-3 bg-white rounded-xl border-2 border-indigo-400 shadow-md space-y-2 animate-in fade-in duration-150">
+                          <div className="p-3 bg-white rounded-xl border-2 border-indigo-400 shadow-md space-y-2.5 animate-in fade-in duration-150">
                             <div className="flex items-center justify-between">
                               <span className="text-[11px] font-bold uppercase text-indigo-700">
                                 Nova Tarefa em: {tipo}
                               </span>
                               <button
+                                type="button"
                                 onClick={() => setAddingStepToType(null)}
-                                className="text-slate-400 hover:text-slate-600 text-xs font-bold"
+                                className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
                               >
                                 ✕
                               </button>
@@ -633,17 +664,60 @@ export const ProjectMindMap: React.FC<ProjectMindMapProps> = ({
                               placeholder="O que precisa ser feito..."
                               className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 text-slate-900"
                             />
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
-                                <Calendar className="w-3 h-3 text-slate-400" />
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+                                <label className="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">
+                                  📅 Data Início
+                                </label>
+                                <input
+                                  type="date"
+                                  value={newStepStartDate}
+                                  onChange={(e) => {
+                                    setNewStepStartDate(e.target.value);
+                                    if (newStepDate && e.target.value && newStepDate < e.target.value) {
+                                      setNewStepDate(e.target.value);
+                                    }
+                                  }}
+                                  className="w-full text-[11px] bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
+                                />
+                              </div>
+                              <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+                                <label className="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">
+                                  🏁 Término (opc.)
+                                </label>
                                 <input
                                   type="date"
                                   value={newStepDate}
                                   onChange={(e) => setNewStepDate(e.target.value)}
-                                  className="text-xs bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
+                                  className="w-full text-[11px] bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
                                 />
                               </div>
+                              <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+                                <label className="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">
+                                  ⏰ Hora Início
+                                </label>
+                                <input
+                                  type="time"
+                                  value={newStepStartTime}
+                                  onChange={(e) => setNewStepStartTime(e.target.value)}
+                                  className="w-full text-[11px] bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
+                                />
+                              </div>
+                              <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+                                <label className="block text-[9px] font-bold uppercase text-slate-500 mb-0.5">
+                                  ⏰ Hora Término
+                                </label>
+                                <input
+                                  type="time"
+                                  value={newStepEndTime}
+                                  onChange={(e) => setNewStepEndTime(e.target.value)}
+                                  className="w-full text-[11px] bg-transparent border-none focus:outline-hidden text-slate-700 cursor-pointer"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-end gap-2 pt-0.5">
                               <button
+                                type="button"
                                 onClick={() => handleCreateStep(tipo)}
                                 className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
                               >
@@ -713,83 +787,149 @@ export const ProjectMindMap: React.FC<ProjectMindMapProps> = ({
                                   </button>
                                 </div>
 
-                                {/* Step Footer: Prazo e Mudar de Ramo */}
-                                <div className="flex items-center justify-between gap-1.5 pt-2 mt-1.5 border-t border-slate-100 text-[11px]">
-                                  {/* Prazo Editor (won't close unexpectedly) */}
+                                {/* Step Footer: Datas, Horário e Mudar de Ramo */}
+                                <div className="flex flex-wrap items-center justify-between gap-1.5 pt-2 mt-1.5 border-t border-slate-100 text-[11px]">
+                                  {/* Prazo & Horário Editor */}
                                   {isEditingDate ? (
-                                    <div className="flex items-center gap-1 bg-white border border-indigo-400 rounded-lg p-1 shadow-md ring-2 ring-indigo-500/20 z-20">
-                                      <input
-                                        type="date"
-                                        value={tempStepDate}
-                                        autoFocus
-                                        onChange={(e) => setTempStepDate(e.target.value)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === "Enter") {
-                                            e.preventDefault();
-                                            onUpdateStepDate(projeto.id, step.id, tempStepDate);
-                                            setEditingStepDateId(null);
-                                          } else if (e.key === "Escape") {
-                                            setEditingStepDateId(null);
-                                          }
-                                        }}
-                                        className="text-[11px] px-1 py-0.5 border border-slate-200 rounded-md focus:outline-hidden text-slate-800 cursor-pointer"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          onUpdateStepDate(projeto.id, step.id, tempStepDate);
-                                          setEditingStepDateId(null);
-                                        }}
-                                        className="px-1.5 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-[10px] font-semibold cursor-pointer"
-                                      >
-                                        Salvar
-                                      </button>
-                                      {step.data_limite && (
+                                    <div className="w-full flex flex-col gap-1.5 bg-white border border-indigo-400 rounded-lg p-2 shadow-md ring-2 ring-indigo-500/20 z-20">
+                                      <div className="grid grid-cols-2 gap-1.5">
+                                        <div>
+                                          <label className="block text-[9px] font-bold uppercase text-slate-500">Início</label>
+                                          <input
+                                            type="date"
+                                            value={tempStepStartDate}
+                                            autoFocus
+                                            onChange={(e) => setTempStepStartDate(e.target.value)}
+                                            className="w-full text-[11px] px-1 py-0.5 border border-slate-200 rounded-md focus:outline-hidden text-slate-800 cursor-pointer"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[9px] font-bold uppercase text-slate-500">Término (opc.)</label>
+                                          <input
+                                            type="date"
+                                            value={tempStepDate}
+                                            onChange={(e) => setTempStepDate(e.target.value)}
+                                            className="w-full text-[11px] px-1 py-0.5 border border-slate-200 rounded-md focus:outline-hidden text-slate-800 cursor-pointer"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[9px] font-bold uppercase text-slate-500">Hora Início</label>
+                                          <input
+                                            type="time"
+                                            value={tempStepStartTime}
+                                            onChange={(e) => setTempStepStartTime(e.target.value)}
+                                            className="w-full text-[11px] px-1 py-0.5 border border-slate-200 rounded-md focus:outline-hidden text-slate-800 cursor-pointer"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[9px] font-bold uppercase text-slate-500">Hora Término</label>
+                                          <input
+                                            type="time"
+                                            value={tempStepEndTime}
+                                            onChange={(e) => setTempStepEndTime(e.target.value)}
+                                            className="w-full text-[11px] px-1 py-0.5 border border-slate-200 rounded-md focus:outline-hidden text-slate-800 cursor-pointer"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center justify-end gap-1">
+                                        {(step.data_inicio || step.data_limite || step.hora_inicio || step.hora_fim) && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              onUpdateStepDate(projeto.id, step.id, "", {
+                                                data_inicio: "",
+                                                hora_inicio: "",
+                                                hora_fim: "",
+                                              });
+                                              setEditingStepDateId(null);
+                                            }}
+                                            className="px-1.5 py-0.5 text-rose-600 hover:bg-rose-50 rounded-md text-[10px] cursor-pointer"
+                                          >
+                                            Limpar
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingStepDateId(null)}
+                                          className="px-1.5 py-0.5 text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"
+                                        >
+                                          Cancelar
+                                        </button>
                                         <button
                                           type="button"
                                           onClick={() => {
-                                            onUpdateStepDate(projeto.id, step.id, "");
+                                            onUpdateStepDate(projeto.id, step.id, tempStepDate, {
+                                              data_inicio: tempStepStartDate,
+                                              hora_inicio: tempStepStartTime,
+                                              hora_fim: tempStepEndTime,
+                                            });
                                             setEditingStepDateId(null);
                                           }}
-                                          className="px-1 py-0.5 text-rose-600 hover:bg-rose-50 rounded-md text-[10px]"
-                                          title="Remover data"
+                                          className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-[10px] font-semibold cursor-pointer"
                                         >
-                                          Limpar
+                                          Salvar
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (step.data_inicio || step.data_limite || step.hora_inicio || step.hora_fim) ? (
+                                    <div className="flex flex-wrap items-center gap-1">
+                                      {(step.data_inicio || step.data_limite) && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingStepDateId(step.id);
+                                            setTempStepStartDate(step.data_inicio || "");
+                                            setTempStepDate(step.data_limite || "");
+                                            setTempStepStartTime(step.hora_inicio || "");
+                                            setTempStepEndTime(step.hora_fim || "");
+                                          }}
+                                          className="font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-1.5 py-0.5 rounded-md flex items-center gap-1 transition-colors cursor-pointer"
+                                          title="Clique para alterar datas e horários"
+                                        >
+                                          <Calendar className="w-3 h-3 text-indigo-500" />
+                                          <span>
+                                            {step.data_inicio && step.data_limite && step.data_inicio !== step.data_limite
+                                              ? `${formatBrDate(step.data_inicio)} → ${formatBrDate(step.data_limite)}`
+                                              : formatBrDate(step.data_limite || step.data_inicio)}
+                                          </span>
                                         </button>
                                       )}
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditingStepDateId(null)}
-                                        className="p-1 text-slate-400 hover:text-slate-600 text-[10px]"
-                                      >
-                                        ✕
-                                      </button>
+                                      {(step.hora_inicio || step.hora_fim) && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingStepDateId(step.id);
+                                            setTempStepStartDate(step.data_inicio || "");
+                                            setTempStepDate(step.data_limite || "");
+                                            setTempStepStartTime(step.hora_inicio || "");
+                                            setTempStepEndTime(step.hora_fim || "");
+                                          }}
+                                          className="font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 rounded-md flex items-center gap-1 transition-colors cursor-pointer"
+                                          title="Clique para alterar datas e horários"
+                                        >
+                                          <Clock className="w-3 h-3 text-amber-500" />
+                                          <span>
+                                            {step.hora_inicio || ""}
+                                            {step.hora_fim ? ` - ${step.hora_fim}` : ""}
+                                          </span>
+                                        </button>
+                                      )}
                                     </div>
-                                  ) : step.data_limite ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setEditingStepDateId(step.id);
-                                        setTempStepDate(step.data_limite || "");
-                                      }}
-                                      className="font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-1.5 py-0.5 rounded-md flex items-center gap-1 transition-colors cursor-pointer"
-                                      title="Clique para alterar o prazo"
-                                    >
-                                      <Calendar className="w-3 h-3 text-indigo-500" />
-                                      <span>{formatBrDate(step.data_limite)}</span>
-                                    </button>
                                   ) : (
                                     <button
                                       type="button"
                                       onClick={() => {
                                         setEditingStepDateId(step.id);
+                                        setTempStepStartDate("");
                                         setTempStepDate("");
+                                        setTempStepStartTime("");
+                                        setTempStepEndTime("");
                                       }}
                                       className="text-slate-400 hover:text-indigo-600 flex items-center gap-1 transition-colors cursor-pointer"
-                                      title="Definir prazo"
+                                      title="Definir data e horário"
                                     >
                                       <Calendar className="w-3 h-3" />
-                                      <span>+ Prazo</span>
+                                      <span>+ Data / Horário</span>
                                     </button>
                                   )}
 

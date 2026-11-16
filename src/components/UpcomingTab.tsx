@@ -299,7 +299,7 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
 
       (proj.passos || []).forEach((step) => {
         if (!step.concluido) {
-          const dateStr = step.data_limite || proj.data_limite || "";
+          const dateStr = step.data_limite || step.data_inicio || proj.data_limite || "";
 
           // Filter by busca
           if (busca.trim()) {
@@ -1255,6 +1255,19 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
                           <Layers className="w-3 h-3" />
                           Etapa
                         </span>
+
+                        {etapa.step.data_inicio && etapa.step.data_limite && etapa.step.data_inicio !== etapa.step.data_limite && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-md border font-semibold bg-blue-50 text-blue-700 border-blue-200">
+                            📅 {formatBrDate(etapa.step.data_inicio)} → {formatBrDate(etapa.step.data_limite)}
+                          </span>
+                        )}
+
+                        {(etapa.step.hora_inicio || etapa.step.hora_fim) && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-md border font-semibold bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {etapa.step.hora_inicio || ""}{etapa.step.hora_fim ? ` - ${etapa.step.hora_fim}` : ""}
+                          </span>
+                        )}
                       </div>
 
                       <h4 className="text-sm font-semibold text-slate-900 leading-snug">
@@ -1470,6 +1483,19 @@ export const UpcomingTab: React.FC<UpcomingTabProps> = ({
                                   <Layers className="w-3 h-3" />
                                   Etapa
                                 </span>
+
+                                {etapa.step.data_inicio && etapa.step.data_limite && etapa.step.data_inicio !== etapa.step.data_limite && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-md border font-semibold bg-blue-50 text-blue-700 border-blue-200">
+                                    📅 {formatBrDate(etapa.step.data_inicio)} → {formatBrDate(etapa.step.data_limite)}
+                                  </span>
+                                )}
+
+                                {(etapa.step.hora_inicio || etapa.step.hora_fim) && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-md border font-semibold bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    {etapa.step.hora_inicio || ""}{etapa.step.hora_fim ? ` - ${etapa.step.hora_fim}` : ""}
+                                  </span>
+                                )}
                               </div>
 
                               <h4 className="text-sm font-semibold text-slate-900 leading-snug">

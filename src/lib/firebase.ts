@@ -372,17 +372,23 @@ export async function addPassoFirestore(
   passoTitulo: string,
   currentPassos: PassoProjeto[],
   dataLimite?: string,
-  tipo?: string
+  tipo?: string,
+  dataInicio?: string,
+  horaInicio?: string,
+  horaFim?: string
 ): Promise<void> {
-  const newPasso: PassoProjeto = {
+  const newPasso: PassoProjeto = sanitizeFirestoreData({
     id: `step_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     projeto_id: projetoId,
     titulo: passoTitulo,
     concluido: false,
     ordem: currentPassos.length + 1,
+    data_inicio: dataInicio || "",
     data_limite: dataLimite || "",
+    hora_inicio: horaInicio || "",
+    hora_fim: horaFim || "",
     tipo: tipo || "Geral",
-  };
+  }) as PassoProjeto;
   const updatedPassos = [...currentPassos, newPasso];
   await updateProjetoFirestore(projetoId, { passos: updatedPassos });
 }

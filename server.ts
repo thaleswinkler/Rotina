@@ -518,9 +518,12 @@ app.post("/api/projects", (req, res) => {
 
   const passosCriados: PassoProjeto[] = [];
   if (Array.isArray(passos)) {
-    passos.forEach((pText: string | { titulo: string; data_limite?: string; concluido?: boolean; tipo?: string }, idx: number) => {
+    passos.forEach((pText: string | { titulo: string; data_inicio?: string; data_limite?: string; hora_inicio?: string; hora_fim?: string; concluido?: boolean; tipo?: string }, idx: number) => {
       const texto = typeof pText === "string" ? pText.trim() : (pText?.titulo || "").trim();
+      const inicioEtapa = typeof pText === "object" && pText?.data_inicio ? pText.data_inicio : "";
       const prazoEtapa = typeof pText === "object" && pText?.data_limite ? pText.data_limite : "";
+      const horaInicioEtapa = typeof pText === "object" && pText?.hora_inicio ? pText.hora_inicio : "";
+      const horaFimEtapa = typeof pText === "object" && pText?.hora_fim ? pText.hora_fim : "";
       const tipoEtapa = typeof pText === "object" && pText?.tipo ? pText.tipo : "Geral";
       if (texto) {
         passosCriados.push({
@@ -529,7 +532,10 @@ app.post("/api/projects", (req, res) => {
           titulo: texto,
           concluido: typeof pText === "object" ? Boolean(pText.concluido) : false,
           ordem: idx + 1,
+          data_inicio: inicioEtapa,
           data_limite: prazoEtapa,
+          hora_inicio: horaInicioEtapa,
+          hora_fim: horaFimEtapa,
           tipo: tipoEtapa,
         });
       }
@@ -600,7 +606,7 @@ app.delete("/api/projects/:id", (req, res) => {
 // Add step to project
 app.post("/api/projects/:id/passos", (req, res) => {
   const projectId = parseInt(req.params.id, 10);
-  const { titulo, data_limite, tipo } = req.body;
+  const { titulo, data_inicio, data_limite, hora_inicio, hora_fim, tipo } = req.body;
 
   if (!titulo || !titulo.trim()) {
     return res.status(400).json({ error: "O título do passo é obrigatório." });
@@ -621,7 +627,10 @@ app.post("/api/projects/:id/passos", (req, res) => {
     titulo: titulo.trim(),
     concluido: false,
     ordem: project.passos.length + 1,
+    data_inicio: data_inicio || "",
     data_limite: data_limite || "",
+    hora_inicio: hora_inicio || "",
+    hora_fim: hora_fim || "",
     tipo: tipo || "Geral",
   };
 
@@ -635,7 +644,7 @@ app.post("/api/projects/:id/passos", (req, res) => {
 app.put("/api/projects/:id/passos/:passoId", (req, res) => {
   const projectId = parseInt(req.params.id, 10);
   const passoId = parseInt(req.params.passoId, 10);
-  const { concluido, titulo, data_limite, tipo } = req.body;
+  const { concluido, titulo, data_inicio, data_limite, hora_inicio, hora_fim, tipo } = req.body;
 
   const db = loadDB();
   const project = (db.projetos || []).find((p) => p.id === projectId);
@@ -651,7 +660,10 @@ app.put("/api/projects/:id/passos/:passoId", (req, res) => {
 
   if (concluido !== undefined) passo.concluido = Boolean(concluido);
   if (titulo !== undefined) passo.titulo = titulo.trim();
+  if (data_inicio !== undefined) passo.data_inicio = data_inicio;
   if (data_limite !== undefined) passo.data_limite = data_limite;
+  if (hora_inicio !== undefined) passo.hora_inicio = hora_inicio;
+  if (hora_fim !== undefined) passo.hora_fim = hora_fim;
   if (tipo !== undefined) passo.tipo = tipo;
 
   // Check if all steps are completed

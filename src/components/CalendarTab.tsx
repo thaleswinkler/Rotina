@@ -355,7 +355,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
 
       proj.passos.forEach((step) => {
         const rawStart = step.data_inicio || step.data_limite || proj.data_limite;
-        const rawEnd = step.data_limite || proj.data_limite || step.data_inicio;
+        const rawEnd = step.data_limite || step.data_inicio || proj.data_limite;
         if (!rawStart && !rawEnd) return;
         const s = rawStart!;
         const e = rawEnd!;
